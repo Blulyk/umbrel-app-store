@@ -1,0 +1,42 @@
+0 verbose cli /usr/local/bin/node /usr/local/bin/npm
+1 info using npm@10.9.4
+2 info using node@v22.22.1
+3 silly config load:file:/usr/local/lib/node_modules/npm/npmrc
+4 silly config load:file:/app/.npmrc
+5 silly config load:file:/data/.npmrc
+6 silly config load:file:/data/.npm-global/etc/npmrc
+7 verbose title npm ci
+8 verbose argv "ci" "--omit" "dev"
+9 verbose logfile logs-max:10 dir:/data/.npm/_logs/2026-03-17T11_45_59_230Z-
+10 verbose logfile /data/.npm/_logs/2026-03-17T11_45_59_230Z-debug-0.log
+11 silly logfile done cleaning log files
+12 silly packumentCache heap:4345298944 maxSize:1086324736 maxEntrySize:543162368
+13 silly idealTree buildDeps
+14 silly reify moves {}
+15 silly audit bulk request {
+15 silly audit   'node-addon-api': [ '7.1.1' ],
+15 silly audit   'node-pty': [ '1.1.0' ],
+15 silly audit   ws: [ '8.19.0' ]
+15 silly audit }
+16 http cache ws@https://registry.npmjs.org/ws/-/ws-8.19.0.tgz 0ms (cache hit)
+17 http cache node-pty@https://registry.npmjs.org/node-pty/-/node-pty-1.1.0.tgz 0ms (cache hit)
+18 http cache node-addon-api@https://registry.npmjs.org/node-addon-api/-/node-addon-api-7.1.1.tgz 0ms (cache hit)
+19 silly tarball no local data for node-pty@https://registry.npmjs.org/node-pty/-/node-pty-1.1.0.tgz. Extracting by manifest.
+20 silly tarball no local data for node-addon-api@https://registry.npmjs.org/node-addon-api/-/node-addon-api-7.1.1.tgz. Extracting by manifest.
+21 http fetch GET 200 https://registry.npmjs.org/node-addon-api/-/node-addon-api-7.1.1.tgz 138ms (cache miss)
+22 http fetch POST 200 https://registry.npmjs.org/-/npm/v1/security/advisories/bulk 186ms
+23 silly audit report {}
+24 http fetch GET 200 https://registry.npmjs.org/node-pty/-/node-pty-1.1.0.tgz 751ms (cache miss)
+25 info run node-pty@1.1.0 install node_modules/node-pty node scripts/prebuild.js || node-gyp rebuild
+26 info run node-pty@1.1.0 install { code: 0, signal: null }
+27 info run node-pty@1.1.0 postinstall node_modules/node-pty node scripts/post-install.js
+28 info run node-pty@1.1.0 postinstall { code: 0, signal: null }
+29 silly ADD node_modules/ws
+30 silly ADD node_modules/node-pty
+31 silly ADD node_modules/node-addon-api
+32 verbose cwd /app
+33 verbose os Linux 6.8.0-1044-azure
+34 verbose node v22.22.1
+35 verbose npm  v10.9.4
+36 verbose exit 0
+37 info ok

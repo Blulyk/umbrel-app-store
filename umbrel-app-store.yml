@@ -1,5 +1,5 @@
 id: "blulyk"
 name: "Blulyk App Store"
-description: "A fresh custom Umbrel App Store."
+description: "A custom Umbrel App Store."
 apps:
-  - openclaw-ai
+  - openclaw
