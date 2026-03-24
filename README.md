@@ -2,6 +2,7 @@
 
 This is a custom Umbrel App Store. The repository has been reset to zero and currently includes:
 - **OpenClaw Mission Control**: Your AI Agents Control Center.
+- **OpenClaw AI**: Your Personal Persistent AI Agent (Core system).
 
 ## How to add this store to your Umbrel
 

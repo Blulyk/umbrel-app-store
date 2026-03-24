@@ -1,0 +1,22 @@
+manifestVersion: 1
+id: openclaw-ai
+category: AI
+name: OpenClaw AI
+version: "1.0.0"
+tagline: "Your Personal Persistent AI Agent"
+description: >
+  OpenClaw is an open-source AI agent that actually does things.
+  
+  It operates directly within your Umbrel securely, storing all memories, skills, and data in your private node's hardware. 
+  The core API and UI are protected by your secure Umbrel dashboard password.
+developer: "OpenClaw"
+website: "https://openclaw.ai/"
+dependencies: []
+repo: "https://github.com/openclaw/openclaw"
+support: "https://github.com/openclaw/openclaw/issues"
+port: 18789
+gallery:
+  - "https://openclaw.ai/apple-touch-icon.png"
+path: ""
+defaultUsername: ""
+defaultPassword: ""
