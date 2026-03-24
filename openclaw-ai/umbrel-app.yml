@@ -15,6 +15,15 @@ dependencies: []
 repo: "https://github.com/openclaw/openclaw"
 support: "https://github.com/openclaw/openclaw/issues"
 port: 18789
+gallery:
+  - "icon.svg"
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: false
+torOnly: false
+submitter: "Blulyk"
+submission: ""
 gallery: []
 path: ""
 defaultUsername: ""
