@@ -24,7 +24,4 @@ deterministicPassword: false
 torOnly: false
 submitter: "Blulyk"
 submission: ""
-gallery: []
-path: ""
-defaultUsername: ""
-defaultPassword: ""
+
