@@ -1,6 +1,7 @@
 # Blulyk's Umbrel App Store
 
-This is a custom Umbrel App Store. The repository has been reset to zero.
+This is a custom Umbrel App Store. The repository has been reset to zero and currently includes:
+- **OpenClaw Mission Control**: Your AI Agents Control Center.
 
 ## How to add this store to your Umbrel
 

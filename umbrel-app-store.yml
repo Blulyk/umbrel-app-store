@@ -1,3 +1,4 @@
 name: "Blulyk App Store"
 description: "A fresh custom Umbrel App Store."
-apps: []
+apps:
+  - openclaw-mission-control

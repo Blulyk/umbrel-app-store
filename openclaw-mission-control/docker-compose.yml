@@ -1,0 +1,64 @@
+version: "3.7"
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: mission_control
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${APP_PASSWORD}
+    volumes:
+      - ${APP_DATA_DIR}/data/postgres:/var/lib/postgresql/data
+    restart: on-failure
+
+  redis:
+    image: redis:7-alpine
+    restart: on-failure
+
+  backend:
+    build: https://github.com/abhi1693/openclaw-mission-control.git#master
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:${APP_PASSWORD}@db:5432/mission_control
+      CORS_ORIGINS: "*"
+      DB_AUTO_MIGRATE: "true"
+      AUTH_MODE: "local"
+      LOCAL_AUTH_TOKEN: ${APP_PASSWORD}
+      BASE_URL: "http://${APP_DOMAIN}:8000"
+      RQ_REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+    restart: on-failure
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: https://github.com/abhi1693/openclaw-mission-control.git#master
+      dockerfile: frontend/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: "http://${APP_DOMAIN}:8000"
+        NEXT_PUBLIC_AUTH_MODE: "local"
+    environment:
+      NEXT_PUBLIC_API_URL: "http://${APP_DOMAIN}:8000"
+      NEXT_PUBLIC_AUTH_MODE: "local"
+    depends_on:
+      - backend
+    restart: on-failure
+
+  webhook-worker:
+    build: https://github.com/abhi1693/openclaw-mission-control.git#master
+    command: ["python", "scripts/rq-docker", "worker"]
+    depends_on:
+      - redis
+      - db
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:${APP_PASSWORD}@db:5432/mission_control
+      AUTH_MODE: "local"
+      LOCAL_AUTH_TOKEN: ${APP_PASSWORD}
+      BASE_URL: "http://${APP_DOMAIN}:8000"
+      RQ_REDIS_URL: redis://redis:6379/0
+      RQ_QUEUE_NAME: default
+      RQ_DISPATCH_THROTTLE_SECONDS: "2.0"
+      RQ_DISPATCH_MAX_RETRIES: "3"
+    restart: on-failure
