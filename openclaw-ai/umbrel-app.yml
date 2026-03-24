@@ -1,6 +1,6 @@
 manifestVersion: 1
 id: openclaw-ai
-category: AI
+category: tools
 name: OpenClaw AI
 version: "1.0.0"
 tagline: "Your Personal Persistent AI Agent"
