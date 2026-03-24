@@ -14,8 +14,7 @@ dependencies: []
 repo: "https://github.com/abhi1693/openclaw-mission-control"
 support: "https://github.com/abhi1693/openclaw-mission-control/issues"
 port: 3000
-gallery:
-  - "https://raw.githubusercontent.com/abhi1693/openclaw-mission-control/master/frontend/public/favicon.ico"
+gallery: []
 path: ""
 defaultUsername: ""
 defaultPassword: ""

@@ -15,8 +15,7 @@ dependencies: []
 repo: "https://github.com/openclaw/openclaw"
 support: "https://github.com/openclaw/openclaw/issues"
 port: 18789
-gallery:
-  - "https://openclaw.ai/apple-touch-icon.png"
+gallery: []
 path: ""
 defaultUsername: ""
 defaultPassword: ""
