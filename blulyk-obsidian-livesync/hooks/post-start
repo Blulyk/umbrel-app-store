@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Esperar a que CouchDB esté listo
+for i in $(seq 1 30); do
+  if curl -sf "http://admin:livesync@localhost:5984/_up" > /dev/null 2>&1; then
+    break
+  fi
+  sleep 2
+done
+
+# Crear bases de datos necesarias (ignora error si ya existen)
+curl -sf -X PUT "http://admin:livesync@localhost:5984/_users" || true
+curl -sf -X PUT "http://admin:livesync@localhost:5984/_replicator" || true
+curl -sf -X PUT "http://admin:livesync@localhost:5984/obsidian" || true
+
+echo "Obsidian LiveSync: bases de datos inicializadas."
