@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DATA_DIR="$(readlink -f "$(dirname "${BASH_SOURCE[0]}")/..")/data"
 mkdir -p "${APP_DATA_DIR}/data"
 mkdir -p "${APP_DATA_DIR}/config"
 
@@ -20,4 +19,4 @@ bind_address = any
 enable_cors = true
 EOF
 
-echo "Obsidian LiveSync: Configuración CORS aplicada."
+echo "LiveSync: CORS config aplicada."
