@@ -25,7 +25,7 @@ description: >-
 
   1. Instala el plugin "Self-hosted LiveSync" desde la comunidad de Obsidian.
   2. Abre sus ajustes y pulsa "Use the setup wizard".
-  3. Introduce: http://<ip-de-tu-umbrel>:5984
+  3. Introduce: http://<ip-de-tu-umbrel>:5985
   4. Usuario: admin / Contraseña: livesync
   5. Nombre de base de datos: obsidian
 
