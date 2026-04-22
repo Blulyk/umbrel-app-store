@@ -2,7 +2,7 @@ manifestVersion: 1
 id: blulyk-obsidian-livesync
 name: Obsidian LiveSync
 tagline: Sincronización en tiempo real de tu vault de Obsidian
-icon: https://raw.githubusercontent.com/vrtmrz/obsidian-livesync/main/logo.png
+icon: https://upload.wikimedia.org/wikipedia/commons/1/10/2023_Obsidian_logo.svg
 category: productivity
 version: "3.3.3"
 port: 5984
@@ -15,7 +15,7 @@ description: >-
   a este servidor. Las notas se sincronizan automáticamente sin servicios externos.
 
 
-  ## Credenciales
+  ## Credenciales por defecto
 
   - Usuario: admin
   - Contraseña: livesync
@@ -41,9 +41,8 @@ submission: https://github.com/Blulyk/umbrel-app-store
 repo: https://github.com/vrtmrz/obsidian-livesync
 support: https://github.com/vrtmrz/obsidian-livesync/issues
 gallery:
-  - https://raw.githubusercontent.com/vrtmrz/obsidian-livesync/main/docs/images/screenshot_setting.png
-  - https://raw.githubusercontent.com/vrtmrz/obsidian-livesync/main/docs/images/screenshot_livesync.png
-  - https://raw.githubusercontent.com/vrtmrz/obsidian-livesync/main/docs/images/screenshot_customize_sync.png
+  - https://raw.githubusercontent.com/vrtmrz/obsidian-livesync/main/docs/all_toggles.png
+  - https://raw.githubusercontent.com/vrtmrz/obsidian-livesync/main/docs/tweak_mismatch_dialogue.png
 releaseNotes: >-
   CouchDB 3.3.3 como backend estable para Obsidian LiveSync.
 dependencies: []
