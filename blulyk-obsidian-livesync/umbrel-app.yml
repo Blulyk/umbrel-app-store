@@ -11,28 +11,28 @@ description: >-
   entre todos tus dispositivos: PC, iPad, iPhone, Mac y Android.
 
 
-  Instala el plugin "Self-hosted LiveSync" en cada dispositivo y apúntalo a este servidor.
-  Tus notas se sincronizan automáticamente sin depender de servicios externos.
+  Instala el plugin "Self-hosted LiveSync" en Obsidian en cada dispositivo y conéctalo
+  a este servidor. Las notas se sincronizan automáticamente sin servicios externos.
 
 
-  ## Credenciales de acceso
+  ## Credenciales
 
   - Usuario: admin
   - Contraseña: livesync
 
 
-  ## Configuración en Obsidian
+  ## Cómo configurarlo
 
   1. Instala el plugin "Self-hosted LiveSync" desde la comunidad de Obsidian.
-  2. Abre la configuración del plugin y selecciona "Use the setup wizard".
-  3. Introduce la URL: http://<ip-de-tu-umbrel>:5984
+  2. Abre sus ajustes y pulsa "Use the setup wizard".
+  3. Introduce: http://<ip-de-tu-umbrel>:5984
   4. Usuario: admin / Contraseña: livesync
-  5. Nombre de la base de datos: obsidian
+  5. Nombre de base de datos: obsidian
 
 
-  ## Cifrado
+  ## Cifrado E2E
 
-  Puedes activar cifrado de extremo a extremo desde el plugin de Obsidian.
+  Puedes activar cifrado de extremo a extremo directamente desde el plugin.
 
 developer: vrtmrz
 website: https://github.com/vrtmrz/obsidian-livesync
