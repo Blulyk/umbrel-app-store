@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_DATA_DIR="$(readlink -f "$(dirname "${BASH_SOURCE[0]}")/..")/data"
+mkdir -p "${APP_DATA_DIR}/data"
+mkdir -p "${APP_DATA_DIR}/config"
+
+cat > "${APP_DATA_DIR}/config/cors.ini" << 'INIEOF'
+[cors]
+origins = *
+credentials = true
+methods = GET, PUT, POST, HEAD, DELETE
+headers = accept, authorization, content-type, origin, referer, x-csrf-token
+max_age = 3600
+
+[chttpd]
+bind_address = any
+
+[httpd]
+enable_cors = true
+INIEOF
+
+echo "Obsidian LiveSync: Configuración CORS aplicada."

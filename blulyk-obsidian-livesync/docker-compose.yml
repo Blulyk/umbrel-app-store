@@ -1,0 +1,39 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      APP_HOST: blulyk-obsidian-livesync_couchdb_1
+      APP_PORT: 5984
+
+  couchdb:
+    image: couchdb:3.3.3
+    init: true
+    restart: on-failure
+    stop_grace_period: 30s
+    environment:
+      COUCHDB_USER: "admin"
+      COUCHDB_PASSWORD: "livesync"
+    volumes:
+      - "${APP_DATA_DIR}/data:/opt/couchdb/data"
+      - "${APP_DATA_DIR}/config:/opt/couchdb/etc/local.d"
+    container_name: blulyk-obsidian-livesync_couchdb_1
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:5984/_up"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  setup:
+    image: curlimages/curl:latest
+    restart: "no"
+    depends_on:
+      couchdb:
+        condition: service_healthy
+    command: >
+      sh -c "
+        curl -sf -X PUT http://admin:livesync@blulyk-obsidian-livesync_couchdb_1:5984/_users || true &&
+        curl -sf -X PUT http://admin:livesync@blulyk-obsidian-livesync_couchdb_1:5984/_replicator || true &&
+        curl -sf -X PUT http://admin:livesync@blulyk-obsidian-livesync_couchdb_1:5984/obsidian || true &&
+        echo 'CouchDB inicializado.'
+      "

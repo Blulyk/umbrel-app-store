@@ -1,0 +1,52 @@
+manifestVersion: 1
+id: blulyk-obsidian-livesync
+name: Obsidian LiveSync
+tagline: Sincronización en tiempo real de tu vault de Obsidian
+icon: https://raw.githubusercontent.com/vrtmrz/obsidian-livesync/main/logo.png
+category: productivity
+version: "3.3.3"
+port: 5984
+description: >-
+  Servidor CouchDB autoalojado para sincronizar tu vault de Obsidian en tiempo real
+  entre todos tus dispositivos: PC, iPad, iPhone, Mac y Android.
+
+
+  Instala el plugin "Self-hosted LiveSync" en cada dispositivo y apúntalo a este servidor.
+  Tus notas se sincronizan automáticamente sin depender de servicios externos.
+
+
+  ## Credenciales de acceso
+
+  - Usuario: admin
+  - Contraseña: livesync
+
+
+  ## Configuración en Obsidian
+
+  1. Instala el plugin "Self-hosted LiveSync" desde la comunidad de Obsidian.
+  2. Abre la configuración del plugin y selecciona "Use the setup wizard".
+  3. Introduce la URL: http://<ip-de-tu-umbrel>:5984
+  4. Usuario: admin / Contraseña: livesync
+  5. Nombre de la base de datos: obsidian
+
+
+  ## Cifrado
+
+  Puedes activar cifrado de extremo a extremo desde el plugin de Obsidian.
+
+developer: vrtmrz
+website: https://github.com/vrtmrz/obsidian-livesync
+submitter: Blulyk
+submission: https://github.com/Blulyk/umbrel-app-store
+repo: https://github.com/vrtmrz/obsidian-livesync
+support: https://github.com/vrtmrz/obsidian-livesync/issues
+gallery:
+  - https://raw.githubusercontent.com/vrtmrz/obsidian-livesync/main/docs/images/screenshot_setting.png
+  - https://raw.githubusercontent.com/vrtmrz/obsidian-livesync/main/docs/images/screenshot_livesync.png
+  - https://raw.githubusercontent.com/vrtmrz/obsidian-livesync/main/docs/images/screenshot_customize_sync.png
+releaseNotes: >-
+  CouchDB 3.3.3 como backend estable para Obsidian LiveSync.
+dependencies: []
+path: ""
+defaultUsername: "admin"
+defaultPassword: "livesync"

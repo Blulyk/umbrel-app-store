@@ -3,3 +3,4 @@ name: "Blulyk App Store"
 description: "A custom Umbrel App Store."
 apps:
   - openclaw
+  - blulyk-obsidian-livesync
