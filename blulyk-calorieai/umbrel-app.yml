@@ -2,14 +2,15 @@ manifestVersion: 1
 id: blulyk-calorieai
 category: utilities
 name: CalorieAI
-version: "1.1.0"
+version: "1.2.0"
 tagline: Track calories from food photos with Gemini AI
 description: >-
   CalorieAI lets you log meals by simply taking a photo. Google Gemini AI
   identifies each food item and estimates calories, protein, carbs and fat
   automatically. Features include a daily dashboard with calorie ring, macro
-  tracking, water intake, 30-day history, weekly charts, and an AI-calculated
-  personalised calorie goal based on your weight, height and activity level.
+  tracking, water intake, full month-by-month history navigation, weekly charts,
+  an AI-calculated personalised calorie goal, and a Recipe Book (Recetario) to
+  save favourite recipes with AI nutritional analysis. Full Spanish UI.
   Supports multiple users — each with their own Gemini API key.
 developer: Blulyk
 website: https://github.com/Blulyk/calorieai
