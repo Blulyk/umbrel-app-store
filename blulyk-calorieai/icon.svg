@@ -1,0 +1,143 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- App background gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#16161f"/>
+      <stop offset="100%" stop-color="#0b0b12"/>
+    </linearGradient>
+
+    <!-- Orange ring gradient -->
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="50%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#ea580c"/>
+    </linearGradient>
+
+    <!-- Inner glow gradient for ring -->
+    <radialGradient id="glowGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f97316" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#f97316" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Glass highlight gradient -->
+    <linearGradient id="glassHighlight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.13)"/>
+      <stop offset="50%" stop-color="rgba(255,255,255,0.03)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </linearGradient>
+
+    <!-- Flame spark gradient -->
+    <linearGradient id="sparkGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="60%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#fef08a"/>
+    </linearGradient>
+
+    <!-- Clip path for rounded square -->
+    <clipPath id="roundedClip">
+      <rect width="512" height="512" rx="116" ry="116"/>
+    </clipPath>
+
+    <filter id="ringGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="sparkGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect width="512" height="512" rx="116" ry="116" fill="url(#bgGrad)"/>
+
+  <!-- Ambient orange glow behind ring -->
+  <circle cx="256" cy="256" r="160" fill="url(#glowGrad)"/>
+
+  <!-- Ring track (background arc) -->
+  <circle
+    cx="256" cy="256" r="148"
+    fill="none"
+    stroke="rgba(255,255,255,0.06)"
+    stroke-width="28"
+    clip-path="url(#roundedClip)"
+  />
+
+  <!-- Main calorie ring — ~80% filled, clockwise from top -->
+  <circle
+    cx="256" cy="256" r="148"
+    fill="none"
+    stroke="url(#ringGrad)"
+    stroke-width="28"
+    stroke-linecap="round"
+    stroke-dasharray="745 931"
+    stroke-dashoffset="233"
+    filter="url(#ringGlow)"
+    clip-path="url(#roundedClip)"
+  />
+
+  <!-- Ring inner glow layer (softer duplicate) -->
+  <circle
+    cx="256" cy="256" r="148"
+    fill="none"
+    stroke="#f97316"
+    stroke-width="10"
+    stroke-linecap="round"
+    stroke-dasharray="745 931"
+    stroke-dashoffset="233"
+    stroke-opacity="0.35"
+    clip-path="url(#roundedClip)"
+  />
+
+  <!-- Flame / spark shape in center -->
+  <g filter="url(#sparkGlow)">
+    <!-- Main flame body -->
+    <path
+      d="M256 160
+         C256 160 228 190 224 218
+         C220 240 232 252 240 258
+         C238 244 244 234 252 228
+         C248 252 256 270 256 284
+         C256 270 268 260 272 248
+         C278 256 280 266 278 278
+         C288 268 292 252 288 234
+         C296 242 298 256 296 268
+         C308 248 308 222 296 200
+         C284 182 268 164 256 160Z"
+      fill="url(#sparkGrad)"
+    />
+    <!-- Inner flame highlight -->
+    <path
+      d="M256 196
+         C256 196 244 212 242 228
+         C240 240 246 250 252 254
+         C250 244 254 238 258 234
+         C256 248 260 260 260 272
+         C264 262 266 252 268 246
+         C270 252 270 260 268 268
+         C276 258 276 244 270 232
+         C268 238 264 242 260 240
+         C264 228 268 210 256 196Z"
+      fill="rgba(255,255,255,0.4)"
+    />
+  </g>
+
+  <!-- Glass specular highlight (top-left inner shine) -->
+  <rect
+    width="512" height="512" rx="116" ry="116"
+    fill="url(#glassHighlight)"
+  />
+
+  <!-- Top edge bright highlight line -->
+  <rect
+    x="80" y="2" width="352" height="2" rx="1"
+    fill="rgba(255,255,255,0.18)"
+  />
+</svg>
