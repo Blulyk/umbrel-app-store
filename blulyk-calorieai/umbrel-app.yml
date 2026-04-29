@@ -2,7 +2,7 @@ manifestVersion: 1
 id: blulyk-calorieai
 category: utilities
 name: CalorieAI
-version: "2.0.16"
+version: "2.1.0"
 tagline: Track calories from food photos with Gemini AI
 description: >-
   CalorieAI lets you log meals by simply taking a photo. Google Gemini AI
@@ -15,8 +15,8 @@ description: >-
   are optimized and served from persistent Umbrel storage. Gemini overload
   errors are retried automatically with simple user-facing messages and food
   analysis falls back across compatible Gemini models and shows when an
-  alternative model was used. The daily calorie ring uses ordered meal-color
-  segments that fill progressively around the chart.
+  alternative model was used. The 2.1 calorie ring uses ordered meal-color
+  pill segments plus a matching remaining-calories pill around the chart.
   Full Spanish UI.
   Supports multiple users — each with their own Gemini API key.
 developer: Blulyk
