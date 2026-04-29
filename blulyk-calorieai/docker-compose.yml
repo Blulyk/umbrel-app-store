@@ -8,7 +8,7 @@ services:
       PROXY_AUTH_ADD: "false"
 
   web:
-    image: ghcr.io/blulyk/calorieai:d563b10f457bd77e495c58916ac1b4c9db754d22
+    image: ghcr.io/blulyk/calorieai:b788e8045f5a6bf243649c1bf884b36fa80513a4
     container_name: blulyk-calorieai_web_1
     restart: on-failure
     stop_grace_period: 1m
