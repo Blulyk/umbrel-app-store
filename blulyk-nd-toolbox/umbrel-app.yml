@@ -2,7 +2,7 @@ manifestVersion: 1.1
 id: blulyk-nd-toolbox
 category: media
 name: Navidrome Toolbox
-version: "0.8.1"
+version: "0.8.2"
 tagline: Utilities for maintaining your Navidrome music library
 description: >-
   Navidrome Toolbox is a containerized CLI utility for maintaining a Navidrome
@@ -33,7 +33,7 @@ path: ""
 permissions:
   - STORAGE_DOWNLOADS
 releaseNotes: >-
-  Fixes the instruction page returning 403 by serving the static web page from
-  the app package instead of generating it in the runtime data directory.
+  Fixes the instruction page returning 403 by generating index.html inside the
+  nginx container before startup, avoiding empty host volume mounts on Umbrel.
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store
