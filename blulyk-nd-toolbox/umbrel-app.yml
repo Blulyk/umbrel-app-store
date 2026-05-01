@@ -2,7 +2,7 @@ manifestVersion: 1.1
 id: blulyk-nd-toolbox
 category: media
 name: Navidrome Toolbox
-version: "0.8.0"
+version: "0.8.1"
 tagline: Utilities for maintaining your Navidrome music library
 description: >-
   Navidrome Toolbox is a containerized CLI utility for maintaining a Navidrome
@@ -33,8 +33,7 @@ path: ""
 permissions:
   - STORAGE_DOWNLOADS
 releaseNotes: >-
-  Initial Umbrel packaging for Navidrome Toolbox 0.8.0 using the Docker Hub
-  image d4vid2/nd-toolbox:main. Includes persistent Beets/data directories,
-  mounts for Navidrome data and Umbrel music storage, and an instruction page.
+  Fixes the instruction page returning 403 by serving the static web page from
+  the app package instead of generating it in the runtime data directory.
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store

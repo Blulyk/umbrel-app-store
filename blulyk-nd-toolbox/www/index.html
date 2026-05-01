@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Navidrome Toolbox</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #09090b; color: #f4f4f5; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 28px; background: radial-gradient(circle at 30% 10%, rgba(249,115,22,.18), transparent 34%), #09090b; }
+    main { width: min(820px, 100%); border: 1px solid rgba(255,255,255,.12); border-radius: 24px; padding: 28px; background: rgba(24,24,27,.82); box-shadow: 0 24px 80px rgba(0,0,0,.38); }
+    h1 { margin: 0 0 8px; font-size: clamp(28px, 5vw, 48px); letter-spacing: 0; }
+    p { color: #d4d4d8; line-height: 1.6; }
+    code, pre { font-family: "SFMono-Regular", Consolas, monospace; }
+    pre { overflow-x: auto; padding: 16px; border-radius: 16px; background: #111113; border: 1px solid rgba(255,255,255,.08); color: #fbbf24; }
+    .grid { display: grid; gap: 14px; margin-top: 20px; }
+    .note { border-left: 3px solid #fb923c; padding: 10px 14px; background: rgba(251,146,60,.08); border-radius: 12px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Navidrome Toolbox</h1>
+    <p>This app runs the <code>nd-toolbox</code> CLI container alongside your Umbrel Navidrome data.</p>
+    <div class="note">
+      Use Umbrel's terminal or SSH to enter the toolbox container. Start with dry-run operations and back up before changing your library.
+    </div>
+    <div class="grid">
+      <pre>docker exec -it blulyk-nd-toolbox_toolbox_1 sh</pre>
+      <pre>make help</pre>
+      <pre>make nd.backup</pre>
+      <pre>make sh.remove-unsupported</pre>
+      <pre>make beet.import</pre>
+      <pre>make beet.duplicatez</pre>
+      <pre>make nd.load-duplicates</pre>
+      <pre>make nd.eval-deletable</pre>
+    </div>
+    <p>Mounted paths: <code>/navidrome</code> for the Navidrome database, <code>/music</code> for Umbrel music downloads, and <code>/data</code> for toolbox data and backups.</p>
+  </main>
+</body>
+</html>

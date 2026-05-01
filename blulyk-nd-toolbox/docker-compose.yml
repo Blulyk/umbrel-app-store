@@ -11,7 +11,7 @@ services:
     image: nginx:1.27-alpine
     restart: on-failure
     volumes:
-      - "${APP_DATA_DIR}/www:/usr/share/nginx/html:ro"
+      - "./www:/usr/share/nginx/html:ro"
     container_name: blulyk-nd-toolbox_web_1
 
   toolbox:
