@@ -61,8 +61,8 @@ services:
     init: true
     restart: on-failure
     working_dir: /app
-    entrypoint: ["/bin/sh", "-c"]
-    command: "while true; do sleep 86400; done"
+    entrypoint: ["/bin/sh"]
+    command: ["-c", "while :; do sleep 86400; done"]
     environment:
       TZ: "Europe/Madrid"
       LOG_LEVEL: "INFO"
