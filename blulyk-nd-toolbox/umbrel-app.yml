@@ -1,0 +1,40 @@
+manifestVersion: 1.1
+id: blulyk-nd-toolbox
+category: media
+name: Navidrome Toolbox
+version: "0.8.0"
+tagline: Utilities for maintaining your Navidrome music library
+description: >-
+  Navidrome Toolbox is a containerized CLI utility for maintaining a Navidrome
+  music library with Beets and custom Navidrome database helpers.
+
+
+  It can import your music into an internal Beets library, inspect duplicates,
+  back up the Navidrome database, merge annotations such as play counts and
+  ratings, evaluate deletable duplicates, and move unsupported media files.
+
+
+  This Umbrel package mounts the official Navidrome app data directory and the
+  Umbrel downloads music folder, so it is intended to be used alongside the
+  official Navidrome app. Open the app after installing it for command examples.
+
+
+  Important: several toolbox commands can modify your Navidrome database or
+  move files in your music library. Start with dry-run commands and make a
+  backup before destructive operations.
+developer: add-n2x
+website: https://github.com/add-n2x/nd-toolbox
+dependencies: []
+repo: https://github.com/add-n2x/nd-toolbox
+support: https://github.com/add-n2x/nd-toolbox/issues
+port: 3492
+gallery: []
+path: ""
+permissions:
+  - STORAGE_DOWNLOADS
+releaseNotes: >-
+  Initial Umbrel packaging for Navidrome Toolbox 0.8.0 using the Docker Hub
+  image d4vid2/nd-toolbox:main. Includes persistent Beets/data directories,
+  mounts for Navidrome data and Umbrel music storage, and an instruction page.
+submitter: Blulyk
+submission: https://github.com/Blulyk/umbrel-app-store

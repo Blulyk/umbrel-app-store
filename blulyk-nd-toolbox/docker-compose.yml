@@ -1,0 +1,44 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      APP_HOST: blulyk-nd-toolbox_web_1
+      APP_PORT: 80
+      PROXY_AUTH_ADD: "false"
+
+  web:
+    image: nginx:1.27-alpine
+    restart: on-failure
+    volumes:
+      - "${APP_DATA_DIR}/www:/usr/share/nginx/html:ro"
+    container_name: blulyk-nd-toolbox_web_1
+
+  toolbox:
+    image: d4vid2/nd-toolbox:main
+    init: true
+    restart: on-failure
+    working_dir: /app
+    entrypoint: ["/bin/sh", "-c"]
+    command: "while true; do sleep 86400; done"
+    environment:
+      TZ: "Europe/Madrid"
+      LOG_LEVEL: "INFO"
+      DRY_RUN: "true"
+      PREFERRED_EXTENSIONS: "mp3 flac"
+      UNSUPPORTED_EXTENSIONS: "m4p mp4 mp2"
+      MUSIC_DIR: "/music"
+      DATA_DIR: "/data"
+      BEETSDIR: "/app/config/beets"
+      BEETS_BASE_PATH: "/music"
+      ND_DIR: "/navidrome"
+      ND_BASE_PATH: "/music/library"
+      HOME: "/data/home"
+      XDG_CACHE_HOME: "/data/cache"
+      POETRY_CACHE_DIR: "/data/poetry-cache"
+    volumes:
+      - "${UMBREL_ROOT}/app-data/navidrome/data:/navidrome"
+      - "${UMBREL_ROOT}/data/storage/downloads/music:/music"
+      - "${APP_DATA_DIR}/data:/data"
+      - "${APP_DATA_DIR}/config/beets:/app/config/beets"
+    container_name: blulyk-nd-toolbox_toolbox_1
