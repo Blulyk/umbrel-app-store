@@ -7,6 +7,7 @@ mkdir -p "${APP_DATA_DIR}/data/home"
 mkdir -p "${APP_DATA_DIR}/data/cache"
 mkdir -p "${APP_DATA_DIR}/data/poetry-cache"
 mkdir -p "${APP_DATA_DIR}/config/beets"
+mkdir -p "${APP_DATA_DIR}/config/toolbox"
 
 if [[ ! -f "${APP_DATA_DIR}/config/beets/config.yaml" ]]; then
 cat > "${APP_DATA_DIR}/config/beets/config.yaml" << 'EOF'
@@ -24,8 +25,8 @@ pluginpath:
   - src/beetsplug
 plugins: duplicates duplicatez info
 duplicates:
-  format: $mb_trackid - $mb_albumid | $path
-  keys: [mb_trackid, mb_albumid]
+  format: $artist - $title - $length | $path
+  keys: [artist, title, length]
   full: yes
   strict: yes
   album: no
@@ -40,6 +41,33 @@ autobpm:
     start_bpm: 160
 EOF
 fi
+
+if grep -q "keys: \\[mb_trackid, mb_albumid\\]" "${APP_DATA_DIR}/config/beets/config.yaml"; then
+  sed -i 's/format: \$mb_trackid - \$mb_albumid | \$path/format: $artist - $title - $length | $path/' "${APP_DATA_DIR}/config/beets/config.yaml"
+  sed -i 's/keys: \[mb_trackid, mb_albumid\]/keys: [artist, title, length]/' "${APP_DATA_DIR}/config/beets/config.yaml"
+fi
+
+cat > "${APP_DATA_DIR}/config/toolbox/config.yaml" << 'EOF'
+
+# Heartbeets Configuration
+
+timezone: Europe/Madrid
+log-level: INFO
+dry-run: True
+pref-extensions: [flac, mp3]
+remove-extensions: [m4a, wma]
+data: /data
+music: /music
+
+beets:
+  config: /app/config/beets/config.yaml
+  database: /data/beets/library.db
+  base-path: /music/
+
+navidrome:
+  database: /navidrome/navidrome.db
+  base-path: ""
+EOF
 
 chown -R 1000:1000 "${APP_DATA_DIR}/data" "${APP_DATA_DIR}/config"
 

@@ -48,7 +48,7 @@ services:
               <pre>make nd.load-duplicates</pre>
               <pre>make nd.eval-deletable</pre>
             </div>
-            <p>Mounted paths: <code>/navidrome</code> for the Navidrome database, <code>/music</code> for Umbrel music downloads, and <code>/data</code> for toolbox data and backups.</p>
+            <p>Mounted paths: <code>/navidrome</code> for the Navidrome database, <code>/music</code> for Downtify/Navidrome audio files, <code>/umbrel-music</code> for Umbrel's music downloads folder, and <code>/data</code> for toolbox data and backups.</p>
           </main>
         </body>
         </html>
@@ -80,7 +80,9 @@ services:
       POETRY_CACHE_DIR: "/data/poetry-cache"
     volumes:
       - "${UMBREL_ROOT}/app-data/navidrome/data:/navidrome"
-      - "${UMBREL_ROOT}/data/storage/downloads/music:/music"
+      - "${UMBREL_ROOT}/home/Downloads/downtify:/music"
+      - "${UMBREL_ROOT}/home/Downloads/music:/umbrel-music"
       - "${APP_DATA_DIR}/data:/data"
       - "${APP_DATA_DIR}/config/beets:/app/config/beets"
+      - "${APP_DATA_DIR}/config/toolbox/config.yaml:/app/config/config.yaml"
     container_name: blulyk-nd-toolbox_toolbox_1

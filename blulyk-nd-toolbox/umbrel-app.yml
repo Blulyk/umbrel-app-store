@@ -2,7 +2,7 @@ manifestVersion: 1.1
 id: blulyk-nd-toolbox
 category: media
 name: Navidrome Toolbox
-version: "0.8.3"
+version: "0.8.4"
 tagline: Utilities for maintaining your Navidrome music library
 description: >-
   Navidrome Toolbox is a containerized CLI utility for maintaining a Navidrome
@@ -15,8 +15,9 @@ description: >-
 
 
   This Umbrel package mounts the official Navidrome app data directory and the
-  Umbrel downloads music folder, so it is intended to be used alongside the
-  official Navidrome app. Open the app after installing it for command examples.
+  Downtify/Navidrome downloads folder used by this server, so it is intended to
+  be used alongside the official Navidrome app. Open the app after installing it
+  for command examples.
 
 
   Important: several toolbox commands can modify your Navidrome database or
@@ -33,7 +34,9 @@ path: ""
 permissions:
   - STORAGE_DOWNLOADS
 releaseNotes: >-
-  Fixes the toolbox container restart loop by passing the idle shell command in
-  exec form. The instruction page remains generated inside nginx at startup.
+  Mounts the active Downtify music folder, adds the toolbox config needed for
+  Navidrome's relative media paths, and switches duplicate detection away from
+  MusicBrainz-only keys so local files without MusicBrainz metadata can still be
+  inspected.
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store
