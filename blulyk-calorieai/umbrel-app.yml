@@ -2,7 +2,7 @@ manifestVersion: 1
 id: blulyk-calorieai
 category: utilities
 name: CalorieAI
-version: "2.3.0"
+version: "3.0.0"
 tagline: Track calories from food photos with Gemini AI
 description: >-
   CalorieAI lets you log meals by simply taking a photo. Google Gemini AI
@@ -10,18 +10,20 @@ description: >-
   automatically. Features include a daily dashboard with calorie ring, macro
   tracking, water intake, full month-by-month history navigation, weekly charts,
   an AI-calculated personalised calorie goal, a Recipe Book (Recetario), and a
-  complete Apple-style 2.0 redesign with a fixed translucent bottom navigation
-  and water intake stored in the daily history. Uploaded meal and recipe photos
-  are optimized and served from persistent Umbrel storage. Gemini overload
-  errors are retried automatically with simple user-facing messages and food
-  analysis falls back across compatible Gemini models and shows when an
-  alternative model was used. The 2.2 update adds a weekly strip view, streak
-  counter, on-demand AI Coach tips (Gemini, button-triggered), recent foods
-  quick-add in the log screen, recipe search/filter in Recetario, a redesigned
-  History page with segmented Calendario/Semana views including a macro donut
-  chart and achievements, and polished UI animations throughout.
-  Full Spanish UI.
-  Supports multiple users — each with their own Gemini API key.
+  complete Apple-style redesign with a fixed translucent bottom navigation.
+  Uploaded meal and recipe photos are optimized and served from persistent
+  Umbrel storage. Gemini overload errors are retried automatically with simple
+  user-facing messages and food analysis falls back across compatible Gemini
+  models.
+  v3.0 adds: barcode scanner (Open Food Facts, 3M+ products), URL recipe
+  importer (auto-extracts ingredients and nutrition from any food blog),
+  restaurant database (65+ items from McDonald's, Burger King, KFC, Starbucks,
+  Five Guys, Subway), weekly meal planner with auto-generated shopping list,
+  adaptive TDEE (calculates real energy expenditure from weight + calorie
+  history), weight history chart with trend line, intermittent fasting timer
+  with progress ring (optional, off by default), and carb cycling with separate
+  training/rest day calorie goals (optional, off by default).
+  Full Spanish UI. Supports multiple users — each with their own Gemini API key.
 developer: Blulyk
 website: https://github.com/Blulyk/calorieai
 dependencies: []
