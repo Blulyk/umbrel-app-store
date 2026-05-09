@@ -2,7 +2,7 @@ manifestVersion: 1
 id: blulyk-calorieai
 category: utilities
 name: CalorieAI
-version: "3.0.1"
+version: "3.0.2"
 tagline: Track calories from food photos with Gemini AI
 description: >-
   CalorieAI lets you log meals by simply taking a photo. Google Gemini AI
@@ -22,7 +22,10 @@ description: >-
   adaptive TDEE (calculates real energy expenditure from weight + calorie
   history), weight history chart with trend line, intermittent fasting timer
   with progress ring (optional, off by default), and carb cycling with separate
-  training/rest day calorie goals (optional, off by default).
+  training/rest day calorie goals (optional, off by default). v3.0.2 fixes
+  barcode scanning on Umbrel by replacing the native-only browser scanner with
+  a ZXing scanner plus photo and manual-code fallbacks, and updates Next.js
+  within the 14.2 line for security fixes.
   Full Spanish UI. Supports multiple users — each with their own Gemini API key.
 developer: Blulyk
 website: https://github.com/Blulyk/calorieai
