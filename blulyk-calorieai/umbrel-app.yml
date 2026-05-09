@@ -2,7 +2,7 @@ manifestVersion: 1
 id: blulyk-calorieai
 category: utilities
 name: CalorieAI
-version: "3.0.7"
+version: "3.0.8"
 tagline: Track calories from food photos with Gemini AI
 description: >-
   CalorieAI lets you log meals by simply taking a photo. Google Gemini AI
@@ -32,6 +32,9 @@ description: >-
   v3.0.6 restores Umbrel update detection after the emergency manual repair.
   v3.0.7 makes calorie goal calculation instant and reliable by using the
   local Mifflin-St Jeor formula instead of waiting on Gemini.
+  v3.0.8 keeps the generated profile summary visible, adds manual recipe
+  nutrition entry, lets shopping-list items be added by hand, and improves
+  bottom-navigation spacing for sheets and dropdowns.
   Full Spanish UI. Supports multiple users — each with their own Gemini API key.
 developer: Blulyk
 website: https://github.com/Blulyk/calorieai
