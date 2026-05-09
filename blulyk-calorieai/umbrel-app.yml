@@ -2,7 +2,7 @@ manifestVersion: 1
 id: blulyk-calorieai
 category: utilities
 name: CalorieAI
-version: "3.0.3"
+version: "3.0.4"
 tagline: Track calories from food photos with Gemini AI
 description: >-
   CalorieAI lets you log meals by simply taking a photo. Google Gemini AI
@@ -25,8 +25,9 @@ description: >-
   training/rest day calorie goals (optional, off by default). v3.0.3 fixes
   barcode scanning on Umbrel by replacing the native-only browser scanner with
   a ZXing scanner plus photo and manual-code fallbacks, updates Next.js within
-  the 14.2 line for security fixes, and corrects the Docker image tag used by
-  Umbrel.
+  the 14.2 line for security fixes, corrects the Docker image tag used by
+  Umbrel, and restores Umbrel's proxy startup by letting app_proxy own the
+  public app port.
   Full Spanish UI. Supports multiple users — each with their own Gemini API key.
 developer: Blulyk
 website: https://github.com/Blulyk/calorieai

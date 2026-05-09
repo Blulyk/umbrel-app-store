@@ -19,5 +19,3 @@ services:
       NODE_ENV: "production"
       DB_PATH: "/data"
       JWT_SECRET: "${APP_SEED}"
-    ports:
-      - "${APP_PORT}:3000"
