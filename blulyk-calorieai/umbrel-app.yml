@@ -2,7 +2,7 @@ manifestVersion: 1
 id: blulyk-calorieai
 category: utilities
 name: CalorieAI
-version: "3.1.0"
+version: "4.0.0"
 tagline: Track calories from food photos with Gemini AI
 description: >-
   CalorieAI lets you log meals by simply taking a photo. Google Gemini AI
@@ -35,6 +35,13 @@ description: >-
   v3.0.8 keeps the generated profile summary visible, adds manual recipe
   nutrition entry, lets shopping-list items be added by hand, and improves
   bottom-navigation spacing for sheets and dropdowns.
+  v4.0 adds: Sushi Buffet Session — a fullscreen animated session with a
+  central spring-animated emoji button (cycles through 12 sushi emojis on
+  each tap), 6 category counters (Nigiri, Maki, Tempura, Gyoza, Postre,
+  Otros), live timer, and automatic Gemini nutrition analysis on finish.
+  Buffet meals show piece count and record badges in the history. Five new
+  achievements: Primera sesion, Apetito de sushi (25), Maestro del maki
+  (40), Campeon del buffet (50), and Leyenda del sushi (100 piezas).
   Full Spanish UI. Supports multiple users — each with their own Gemini API key.
 developer: Blulyk
 website: https://github.com/Blulyk/calorieai
