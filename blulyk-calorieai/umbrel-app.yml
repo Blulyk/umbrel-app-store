@@ -2,7 +2,7 @@ manifestVersion: 1
 id: blulyk-calorieai
 category: utilities
 name: CalorieAI
-version: "4.0.3"
+version: "4.0.4"
 tagline: Track calories from food photos with Gemini AI
 description: >-
   CalorieAI lets you log meals by simply taking a photo. Google Gemini AI
@@ -43,6 +43,10 @@ description: >-
   achievements: Primera sesion, Apetito de sushi (25), Maestro del maki
   (40), Campeon del buffet (50), and Leyenda del sushi (100 piezas).
   Full Spanish UI. Supports multiple users — each with their own Gemini API key.
+  v4.0.4 shows detailed Gemini diagnostics on buffet analysis failure: which models
+  were tried, HTTP codes, Google error messages, and per-attempt details — so you
+  can see exactly why Gemini failed instead of a generic error. Each model gets an
+  18-second timeout; quota/auth errors short-circuit the retry loop immediately.
 developer: Blulyk
 website: https://github.com/Blulyk/calorieai
 dependencies: []
