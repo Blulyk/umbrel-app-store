@@ -3,7 +3,7 @@ id: blulyk-calorieai
 icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-calorieai/icon.svg
 category: utilities
 name: CalorieAI
-version: "4.0.9"
+version: "4.1.0"
 tagline: Track calories from food photos with Gemini AI
 description: >-
   CalorieAI lets you log meals by simply taking a photo. Google Gemini AI
@@ -48,6 +48,12 @@ description: >-
   were tried, HTTP codes, Google error messages, and per-attempt details — so you
   can see exactly why Gemini failed instead of a generic error. Each model gets an
   18-second timeout; quota/auth errors short-circuit the retry loop immediately.
+  v4.1 fixes three recipe issues: (1) meal type picker — when adding a recipe to
+  the diary a sheet now lets you choose Desayuno, Almuerzo, Cena or Snack
+  (pre-selected based on the current time); (2) emoji banners — recipes without a
+  photo get a Gemini-suggested emoji displayed as a gradient banner in both the
+  Recetario and the daily log; (3) image serving — recipe and meal photos now load
+  correctly on Umbrel via a dedicated API route that reads from persistent storage.
 developer: Blulyk
 website: https://github.com/Blulyk/calorieai
 dependencies: []
