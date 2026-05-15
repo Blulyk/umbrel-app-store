@@ -1,0 +1,25 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      APP_HOST: blulyk-subnautica-two-manager_web_1
+      APP_PORT: 3000
+      PROXY_AUTH_ADD: "false"
+
+  web:
+    build: .
+    container_name: blulyk-subnautica-two-manager_web_1
+    restart: on-failure
+    stop_grace_period: 2m
+    environment:
+      NODE_ENV: "production"
+      PORT: "3000"
+      DATA_DIR: "/data"
+      TZ: "Europe/Madrid"
+      STEAM_APP_ID: "2327760"
+    volumes:
+      - "${APP_DATA_DIR}/data:/data"
+    ports:
+      - "27015-27030:27015-27030/udp"
+      - "27015-27030:27015-27030/tcp"

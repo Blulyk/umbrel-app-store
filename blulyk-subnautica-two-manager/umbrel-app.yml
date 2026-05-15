@@ -1,0 +1,35 @@
+manifestVersion: 1
+id: blulyk-subnautica-two-manager
+name: Subnautica 2 Server Manager
+tagline: Gestiona servidores dedicados de Subnautica 2
+icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-subnautica-two-manager/icon.svg
+category: games
+version: "0.1.0"
+port: 3022
+description: >-
+  Panel web para instalar, actualizar y gestionar servidores dedicados de
+  Subnautica 2 desde tu Umbrel. Usa SteamCMD con login anonimo y el App ID
+  2327760, guarda cada servidor en almacenamiento persistente, permite crear
+  varias instancias, editar Internal_Server.cfg, ver logs, arrancar/parar
+  servidores y crear backups.
+
+
+  Subnautica 2 esta en Early Access y algunos detalles oficiales del servidor
+  dedicado, como puertos definitivos y claves completas de configuracion,
+  pueden cambiar. Por eso el gestor deja puertos, argumentos de arranque y
+  configuracion avanzada completamente editables.
+developer: Blulyk
+website: https://github.com/Blulyk/umbrel-app-store
+dependencies: []
+repo: https://github.com/Blulyk/umbrel-app-store
+support: https://github.com/Blulyk/umbrel-app-store/issues
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+submitter: Blulyk
+submission: https://github.com/Blulyk/umbrel-app-store
+releaseNotes: >-
+  Primera version del gestor de servidores de Subnautica 2 para Umbrel:
+  instalacion con SteamCMD, multiples servidores, configuracion editable,
+  control de procesos, logs y backups.

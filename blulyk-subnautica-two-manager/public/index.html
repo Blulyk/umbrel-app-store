@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Subnautica 2 Server Manager</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <img src="/icon.svg" alt="">
+      <div>
+        <strong>Subnautica 2</strong>
+        <span>Server Manager</span>
+      </div>
+    </div>
+    <button id="newServer" class="primary">Nuevo servidor</button>
+    <div id="serverList" class="server-list"></div>
+  </aside>
+
+  <main class="workspace">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Umbrel self-hosted</p>
+        <h1 id="title">Selecciona un servidor</h1>
+      </div>
+      <div class="status-pill" id="health">Comprobando</div>
+    </header>
+
+    <section class="overview">
+      <div class="metric">
+        <span>Estado</span>
+        <strong id="state">-</strong>
+      </div>
+      <div class="metric">
+        <span>Jugadores</span>
+        <strong id="players">-</strong>
+      </div>
+      <div class="metric">
+        <span>Puerto</span>
+        <strong id="ports">-</strong>
+      </div>
+      <div class="metric">
+        <span>App ID</span>
+        <strong>2327760</strong>
+      </div>
+    </section>
+
+    <nav class="tabs" aria-label="Secciones">
+      <button class="tab active" data-tab="control">Control</button>
+      <button class="tab" data-tab="config">Configuracion</button>
+      <button class="tab" data-tab="logs">Logs</button>
+      <button class="tab" data-tab="backups">Backups</button>
+    </nav>
+
+    <section id="control" class="panel active">
+      <div class="actions">
+        <button id="installBtn">Instalar / actualizar</button>
+        <button id="startBtn">Arrancar</button>
+        <button id="stopBtn">Parar</button>
+      </div>
+      <div class="notice">
+        <strong>Nota de Early Access</strong>
+        <p>El gestor usa SteamCMD con login anonimo y escribe <code>Subnautica2_Data/Config/Internal_Server.cfg</code>. Si Unknown Worlds cambia el binario, los puertos o las claves, puedes ajustarlo en Configuracion.</p>
+      </div>
+      <div id="jobs" class="jobs"></div>
+    </section>
+
+    <section id="config" class="panel">
+      <form id="serverForm" class="form">
+        <label>Nombre
+          <input name="name" autocomplete="off">
+        </label>
+        <label>Descripcion
+          <input name="description" autocomplete="off">
+        </label>
+        <label>Max jugadores
+          <input name="maxPlayers" type="number" min="1" max="32">
+        </label>
+        <label>Puerto juego
+          <input name="gamePort" type="number" min="1" max="65535">
+        </label>
+        <label>Puerto query
+          <input name="queryPort" type="number" min="1" max="65535">
+        </label>
+        <label>Contrasena
+          <input name="password" autocomplete="new-password">
+        </label>
+        <label>Rama Steam beta
+          <input name="branch" placeholder="public">
+        </label>
+        <label>Ruta del ejecutable
+          <input name="executablePath" placeholder="auto">
+        </label>
+        <label class="wide">Argumentos de arranque
+          <input name="launchArgs" placeholder="-batchmode -nographics">
+        </label>
+        <label class="wide">Internal_Server.cfg
+          <textarea name="configText" spellcheck="false"></textarea>
+        </label>
+        <div class="form-actions">
+          <button type="submit" class="primary">Guardar cambios</button>
+          <button type="button" id="deleteBtn" class="danger">Borrar servidor</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="logs" class="panel">
+      <div class="actions">
+        <button id="refreshLogs">Actualizar logs</button>
+      </div>
+      <pre id="logOutput"></pre>
+    </section>
+
+    <section id="backups" class="panel">
+      <div class="actions">
+        <button id="backupBtn">Crear backup</button>
+        <button id="refreshBackups">Actualizar lista</button>
+      </div>
+      <div id="backupList" class="backup-list"></div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "subnautica2-server-manager",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Umbrel manager for Subnautica 2 dedicated servers",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "4.22.2"
+  }
+}
