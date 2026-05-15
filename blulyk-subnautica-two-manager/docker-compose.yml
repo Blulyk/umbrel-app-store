@@ -8,7 +8,7 @@ services:
       PROXY_AUTH_ADD: "false"
 
   web:
-    build: .
+    image: ghcr.io/blulyk/subnautica-two-manager:latest
     container_name: blulyk-subnautica-two-manager_web_1
     restart: on-failure
     stop_grace_period: 2m
