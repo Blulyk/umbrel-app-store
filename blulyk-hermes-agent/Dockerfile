@@ -2,7 +2,9 @@ FROM nousresearch/hermes-agent:latest
 
 USER root
 
-RUN python -m pip install --no-cache-dir aiohttp
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3-aiohttp \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/hermes-umbrel
 
@@ -15,5 +17,4 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 9119
 
-ENTRYPOINT []
-CMD ["python", "/opt/hermes-umbrel/terminal_server.py"]
+CMD ["python3", "/opt/hermes-umbrel/terminal_server.py"]
