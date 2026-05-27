@@ -4,7 +4,7 @@ name: Hermes Agent
 tagline: Autonomous AI agent with memory, skills and messaging
 icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-hermes-agent/icon.svg
 category: ai
-version: "0.14.0"
+version: "0.14.1"
 port: 9119
 description: >-
   Hermes Agent is the self-improving AI agent from Nous Research. It runs on
@@ -13,14 +13,15 @@ description: >-
   Telegram, Discord, Slack, WhatsApp, Signal and email.
 
 
-  This Umbrel app runs the official Hermes Agent Docker image with persistent
-  state mounted at /opt/data. The Hermes gateway runs continuously and the
-  built-in dashboard is exposed through Umbrel on port 9119.
+  This Umbrel app runs a thin wrapper around the official Hermes Agent Docker
+  image with persistent state mounted at /opt/data. The web UI exposed through
+  Umbrel includes an embedded terminal so you can run Hermes chat, setup,
+  model selection, status and a shell directly from the app.
 
 
-  After installing, open the app and complete Hermes setup from the dashboard
-  or by entering the container and running "hermes setup". API keys and Hermes
-  configuration are stored in your app data volume.
+  After installing, open the app, use the Setup tab to configure Hermes, then
+  return to Chat to talk with the agent without opening an external terminal.
+  API keys and Hermes configuration are stored in your app data volume.
 developer: Nous Research
 website: https://hermes-agent.nousresearch.com/
 dependencies: []
@@ -33,6 +34,7 @@ defaultPassword: ""
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store
 releaseNotes: >-
-  Initial Umbrel packaging for Hermes Agent using the official
-  nousresearch/hermes-agent Docker image, persistent /opt/data storage,
-  gateway mode and dashboard access through Umbrel.
+  v0.14.1 replaces the broken direct dashboard launch with an Umbrel-native
+  web terminal. The app now opens to a browser terminal with Chat, Setup,
+  Model, Status and Shell modes, while still using the official Hermes Agent
+  image as the base.

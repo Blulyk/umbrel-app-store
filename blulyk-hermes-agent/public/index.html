@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hermes Agent Terminal</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <aside>
+    <div class="brand">
+      <img src="/icon.svg" alt="">
+      <div>
+        <strong>Hermes Agent</strong>
+        <span>Umbrel terminal</span>
+      </div>
+    </div>
+
+    <button class="mode active" data-mode="chat">Chat</button>
+    <button class="mode" data-mode="setup">Setup</button>
+    <button class="mode" data-mode="model">Modelo</button>
+    <button class="mode" data-mode="status">Estado</button>
+    <button class="mode" data-mode="shell">Shell</button>
+
+    <div class="hint">
+      <strong>Primer arranque</strong>
+      <p>Abre Setup para configurar proveedor y claves. Despues vuelve a Chat para hablar con Hermes.</p>
+    </div>
+  </aside>
+
+  <main>
+    <header>
+      <div>
+        <p>Terminal integrada</p>
+        <h1 id="title">Chat</h1>
+      </div>
+      <div class="actions">
+        <span id="state">conectando</span>
+        <button id="restart">Reiniciar terminal</button>
+      </div>
+    </header>
+    <section id="terminal"></section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
