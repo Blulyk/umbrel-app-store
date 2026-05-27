@@ -1,2 +1,4 @@
 # Nunca commitear datos de las apps
 */data/
+__pycache__/
+*.pyc
