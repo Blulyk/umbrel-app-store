@@ -1,0 +1,38 @@
+manifestVersion: 1
+id: blulyk-hermes-agent
+name: Hermes Agent
+tagline: Autonomous AI agent with memory, skills and messaging
+icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-hermes-agent/icon.svg
+category: ai
+version: "0.14.0"
+port: 9119
+description: >-
+  Hermes Agent is the self-improving AI agent from Nous Research. It runs on
+  your server, keeps persistent memory, creates and improves skills, supports
+  scheduled automations, and can connect to messaging platforms such as
+  Telegram, Discord, Slack, WhatsApp, Signal and email.
+
+
+  This Umbrel app runs the official Hermes Agent Docker image with persistent
+  state mounted at /opt/data. The Hermes gateway runs continuously and the
+  built-in dashboard is exposed through Umbrel on port 9119.
+
+
+  After installing, open the app and complete Hermes setup from the dashboard
+  or by entering the container and running "hermes setup". API keys and Hermes
+  configuration are stored in your app data volume.
+developer: Nous Research
+website: https://hermes-agent.nousresearch.com/
+dependencies: []
+repo: https://github.com/NousResearch/hermes-agent
+support: https://github.com/NousResearch/hermes-agent/issues
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+submitter: Blulyk
+submission: https://github.com/Blulyk/umbrel-app-store
+releaseNotes: >-
+  Initial Umbrel packaging for Hermes Agent using the official
+  nousresearch/hermes-agent Docker image, persistent /opt/data storage,
+  gateway mode and dashboard access through Umbrel.

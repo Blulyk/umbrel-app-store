@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Hermes Agent">
+  <defs>
+    <linearGradient id="bg" x1="24" y1="20" x2="232" y2="236" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4f46e5"/>
+      <stop offset="0.46" stop-color="#111827"/>
+      <stop offset="1" stop-color="#14b8a6"/>
+    </linearGradient>
+    <linearGradient id="wing" x1="48" y1="68" x2="208" y2="188" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#93c5fd"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <path d="M76 78c26 0 43 10 52 30 9-20 26-30 52-30-7 29-26 48-57 57l5 43-16-43c-30-9-49-28-56-57z" fill="url(#wing)" opacity="0.95"/>
+  <path d="M128 56v144" stroke="#f8fafc" stroke-width="12" stroke-linecap="round"/>
+  <path d="M96 106h64M102 148h52" stroke="#0f172a" stroke-width="10" stroke-linecap="round" opacity="0.82"/>
+  <circle cx="128" cy="56" r="18" fill="#fde68a"/>
+  <path d="M106 205h44" stroke="#f8fafc" stroke-width="12" stroke-linecap="round"/>
+</svg>
