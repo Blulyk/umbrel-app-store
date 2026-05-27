@@ -12,8 +12,10 @@ let socket;
 const terminal = new Terminal({
   cursorBlink: true,
   convertEol: true,
-  fontFamily: '"Cascadia Mono", "SFMono-Regular", Consolas, monospace',
-  fontSize: 14,
+  fontFamily: '"Cascadia Mono", "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace',
+  fontSize: 15,
+  lineHeight: 1.35,
+  letterSpacing: 0,
   theme: {
     background: "#020909",
     foreground: "#ffe6cb",

@@ -4,7 +4,7 @@ name: Hermes Agent
 tagline: Autonomous AI agent with memory, skills and messaging
 icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-hermes-agent/icon.svg
 category: ai
-version: "0.14.5"
+version: "0.14.6"
 port: 9119
 description: >-
   Hermes Agent is the self-improving AI agent from Nous Research. It runs on
@@ -34,7 +34,6 @@ defaultPassword: ""
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store
 releaseNotes: >-
-  v0.14.5 replaces the landing-style screen with a practical Hermes control
-  console: large terminal-first layout, compact mode switcher, quick commands,
-  connection/data status and restart/clear controls, while keeping the visual
-  language of the official Hermes Agent website.
+  v0.14.6 improves terminal readability by switching the terminal content to a
+  comfortable monospace stack, removing inherited uppercase/letter spacing from
+  xterm, and increasing line height while keeping the Hermes-style shell UI.

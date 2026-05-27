@@ -325,11 +325,23 @@ small {
   min-height: 0;
   overflow: hidden;
   background: var(--terminal);
-  padding: 16px;
+  padding: 18px;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .xterm {
   height: 100%;
+}
+
+.xterm,
+.xterm * {
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+.xterm-rows {
+  line-height: 1.35 !important;
 }
 
 .site-footer {
