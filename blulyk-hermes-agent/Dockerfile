@@ -9,7 +9,10 @@ RUN apt-get update \
 WORKDIR /opt/hermes-umbrel
 
 COPY terminal_server.py ./
+COPY hotfix_codex.py ./
 COPY public ./public
+
+RUN python3 /opt/hermes-umbrel/hotfix_codex.py
 
 ENV HERMES_HOME=/opt/data
 ENV HOME=/opt/data
