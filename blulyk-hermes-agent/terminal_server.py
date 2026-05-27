@@ -40,6 +40,7 @@ async def websocket(request):
     env = os.environ.copy()
     env["HERMES_HOME"] = str(DATA_DIR)
     env["HOME"] = str(DATA_DIR)
+    env["PATH"] = f"/opt/hermes/.venv/bin:/opt/data/.local/bin:{env.get('PATH', '')}"
     env.setdefault("TERM", "xterm-256color")
     env.setdefault("COLORTERM", "truecolor")
 

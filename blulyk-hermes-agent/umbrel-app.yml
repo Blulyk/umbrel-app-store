@@ -4,7 +4,7 @@ name: Hermes Agent
 tagline: Autonomous AI agent with memory, skills and messaging
 icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-hermes-agent/icon.svg
 category: ai
-version: "0.14.2"
+version: "0.14.3"
 port: 9119
 description: >-
   Hermes Agent is the self-improving AI agent from Nous Research. It runs on
@@ -34,7 +34,7 @@ defaultPassword: ""
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store
 releaseNotes: >-
-  v0.14.2 applies a Codex/OpenAI Responses hotfix for the Hermes
+  v0.14.3 fixes the embedded terminal PATH so Hermes launches reliably from
+  the browser terminal, and keeps the Codex/OpenAI Responses hotfix for the
   "'NoneType' object is not iterable" crash when the ChatGPT Codex backend
-  returns response.output=null. Keeps the Umbrel-native browser terminal with
-  Chat, Setup, Model, Status and Shell modes.
+  returns response.output=null.
