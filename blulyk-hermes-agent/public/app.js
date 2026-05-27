@@ -37,6 +37,7 @@ fit.fit();
 
 function setState(value) {
   document.getElementById("state").textContent = value;
+  document.getElementById("sessionState").textContent = value === "conectado" ? "activa" : value;
 }
 
 function wsUrl(mode) {
@@ -48,6 +49,7 @@ function connect(mode) {
   if (socket) socket.close();
   currentMode = mode;
   document.getElementById("title").textContent = modes[mode];
+  document.getElementById("activeMode").textContent = modes[mode];
   document.querySelectorAll(".mode").forEach((button) => {
     button.classList.toggle("active", button.dataset.mode === mode);
   });
@@ -96,5 +98,13 @@ document.querySelectorAll(".mode").forEach((button) => {
 });
 
 document.getElementById("restart").addEventListener("click", () => connect(currentMode));
+document.getElementById("clearTerminal").addEventListener("click", () => terminal.clear());
+
+document.querySelectorAll(".quick").forEach((button) => {
+  button.addEventListener("click", () => {
+    terminal.focus();
+    send({ type: "input", data: `${button.dataset.send}\n` });
+  });
+});
 
 connect("chat");
