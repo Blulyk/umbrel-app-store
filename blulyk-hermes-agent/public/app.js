@@ -15,10 +15,18 @@ const terminal = new Terminal({
   fontFamily: '"Cascadia Mono", "SFMono-Regular", Consolas, monospace',
   fontSize: 14,
   theme: {
-    background: "#05070c",
-    foreground: "#eef2ff",
-    cursor: "#76e4f7",
-    selectionBackground: "#334155"
+    background: "#020909",
+    foreground: "#ffe6cb",
+    cursor: "#ffff89",
+    selectionBackground: "#3b342d",
+    black: "#041c1c",
+    red: "#ff867a",
+    green: "#b7e58c",
+    yellow: "#ffff89",
+    blue: "#9ad1ff",
+    magenta: "#ffb4e6",
+    cyan: "#9ff5e5",
+    white: "#ffe6cb"
   }
 });
 

@@ -8,39 +8,62 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <aside>
-    <div class="brand">
-      <img src="/icon.svg" alt="">
-      <div>
-        <strong>Hermes Agent</strong>
-        <span>Umbrel terminal</span>
-      </div>
-    </div>
+  <div class="bg-noise"></div>
+  <div class="bg-wash"></div>
+  <div class="bg-radial"></div>
 
-    <button class="mode active" data-mode="chat">Chat</button>
-    <button class="mode" data-mode="setup">Setup</button>
-    <button class="mode" data-mode="model">Modelo</button>
-    <button class="mode" data-mode="status">Estado</button>
-    <button class="mode" data-mode="shell">Shell</button>
-
-    <div class="hint">
-      <strong>Primer arranque</strong>
-      <p>Abre Setup para configurar proveedor y claves. Despues vuelve a Chat para hablar con Hermes.</p>
-    </div>
-  </aside>
-
-  <main>
-    <header>
-      <div>
-        <p>Terminal integrada</p>
-        <h1 id="title">Chat</h1>
-      </div>
-      <div class="actions">
-        <span id="state">conectando</span>
-        <button id="restart">Reiniciar terminal</button>
-      </div>
+  <main class="shell">
+    <header class="site-header">
+      <a class="brand" href="https://hermes-agent.nousresearch.com/" target="_blank" rel="noopener noreferrer">
+        <span>Hermes<br>Agent</span>
+      </a>
+      <a class="nav-cell" href="https://hermes-agent.nousresearch.com/docs" target="_blank" rel="noopener noreferrer">Docs</a>
+      <a class="nav-cell" href="https://portal.nousresearch.com/" target="_blank" rel="noopener noreferrer">Portal</a>
+      <div class="nav-cell muted">Umbrel</div>
+      <div class="nav-cell status" id="state">conectando</div>
     </header>
-    <section id="terminal"></section>
+
+    <section class="hero-grid">
+      <aside class="control-panel">
+        <small>Open Source · MIT License</small>
+        <h1>Terminal<br>Integrada.</h1>
+        <p>Hermes vive en tu Umbrel. Configura el agente, el modelo y chatea desde esta consola web sin abrir SSH.</p>
+
+        <div class="mode-grid" aria-label="Modos de terminal">
+          <button class="mode active" data-mode="chat">Chat</button>
+          <button class="mode" data-mode="setup">Setup</button>
+          <button class="mode" data-mode="model">Modelo</button>
+          <button class="mode" data-mode="status">Estado</button>
+          <button class="mode" data-mode="shell">Shell</button>
+        </div>
+
+        <div class="install-card">
+          <div>
+            <small>1. Configure</small>
+            <code>hermes setup</code>
+          </div>
+          <div>
+            <small>2. Talk</small>
+            <code>hermes</code>
+          </div>
+        </div>
+      </aside>
+
+      <section class="terminal-wrap" aria-label="Hermes terminal">
+        <div class="terminal-titlebar">
+          <div class="dots" aria-hidden="true"><span></span><span></span><span></span></div>
+          <span id="title">Chat</span>
+          <button id="restart">Restart</button>
+        </div>
+        <div id="terminal"></div>
+      </section>
+    </section>
+
+    <footer class="site-footer">
+      <div>Hermes Agent <span>v0.14.0</span></div>
+      <div>Nous Research</div>
+      <div>MIT License · 2026</div>
+    </footer>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
