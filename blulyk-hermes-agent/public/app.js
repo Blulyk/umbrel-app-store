@@ -1,5 +1,6 @@
 const modes = {
   chat: "Chat",
+  control: "Control",
   setup: "Setup",
   model: "Modelo",
   status: "Estado",
@@ -49,6 +50,7 @@ const fit = new FitAddon.FitAddon();
 terminal.loadAddon(fit);
 terminal.open(document.getElementById("terminal"));
 fit.fit();
+terminal.options.screenReaderMode = false;
 
 function setState(value) {
   document.getElementById("state").textContent = value;
@@ -68,9 +70,7 @@ function connect(mode) {
   document.querySelectorAll(".mode").forEach((button) => {
     button.classList.toggle("active", button.dataset.mode === mode);
   });
-  terminal.reset();
-  terminal.writeln(`Hermes Agent - ${modes[mode]}`);
-  terminal.writeln("");
+  terminal.clear();
   setState("conectando");
 
   socket = new WebSocket(wsUrl(mode));
@@ -114,8 +114,11 @@ document.querySelectorAll(".mode").forEach((button) => {
   button.addEventListener("click", () => connect(button.dataset.mode));
 });
 
-document.getElementById("restart").addEventListener("click", () => connect(currentMode));
-document.getElementById("clearTerminal").addEventListener("click", () => terminal.clear());
+document.getElementById("restart").addEventListener("click", async () => {
+  await fetch(`/session/restart?mode=${encodeURIComponent(currentMode)}`, { method: "POST" });
+  connect(currentMode);
+});
+document.getElementById("controlTerminal").addEventListener("click", () => connect("control"));
 
 document.querySelectorAll(".quick").forEach((button) => {
   button.addEventListener("click", () => {
