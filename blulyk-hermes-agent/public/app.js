@@ -8,14 +8,16 @@ const modes = {
 
 let currentMode = "chat";
 let socket;
+const isTouchDevice = matchMedia("(pointer: coarse)").matches;
 
 const terminal = new Terminal({
   cursorBlink: true,
   convertEol: true,
   fontFamily: '"Cascadia Mono", "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace',
-  fontSize: 15,
-  lineHeight: 1.35,
+  fontSize: isTouchDevice ? 13 : 15,
+  lineHeight: isTouchDevice ? 1.25 : 1.35,
   letterSpacing: 0,
+  scrollback: 4000,
   theme: {
     background: "#020909",
     foreground: "#ffe6cb",
@@ -94,6 +96,8 @@ function resize() {
 
 terminal.onData((data) => send({ type: "input", data }));
 window.addEventListener("resize", resize);
+window.visualViewport?.addEventListener("resize", () => setTimeout(resize, 80));
+window.visualViewport?.addEventListener("scroll", () => setTimeout(resize, 80));
 
 document.querySelectorAll(".mode").forEach((button) => {
   button.addEventListener("click", () => connect(button.dataset.mode));
@@ -107,6 +111,16 @@ document.querySelectorAll(".quick").forEach((button) => {
     terminal.focus();
     send({ type: "input", data: `${button.dataset.send}\n` });
   });
+});
+
+document.getElementById("mobileComposer").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const input = document.getElementById("mobileInput");
+  const value = input.value.trim();
+  if (!value) return;
+  send({ type: "input", data: `${value}\n` });
+  input.value = "";
+  setTimeout(resize, 80);
 });
 
 connect("chat");

@@ -26,6 +26,7 @@
 
 body {
   min-height: 100vh;
+  min-height: 100dvh;
   margin: 0;
   overflow: hidden;
   background: var(--background);
@@ -271,7 +272,7 @@ small {
 .terminal-wrap {
   grid-column: span 4;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   padding: 0;
   border: 4px double var(--line-strong);
   margin: 18px 0 18px 18px;
@@ -344,6 +345,10 @@ small {
   line-height: 1.35 !important;
 }
 
+.mobile-composer {
+  display: none;
+}
+
 .site-footer {
   min-height: 58px;
   border-bottom: 1px solid var(--line);
@@ -370,18 +375,37 @@ small {
 }
 
 @media (max-width: 820px) {
-  body { overflow: auto; }
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
+  }
 
   .shell {
-    height: auto;
-    min-height: 100vh;
-    padding: 16px;
+    width: 100%;
+    height: 100dvh;
+    min-height: 100dvh;
+    padding:
+      max(8px, env(safe-area-inset-top))
+      max(8px, env(safe-area-inset-right))
+      max(8px, env(safe-area-inset-bottom))
+      max(8px, env(safe-area-inset-left));
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 8px;
   }
 
   .site-header,
-  .site-footer,
   .app-grid {
     grid-template-columns: 1fr;
+  }
+
+  .site-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    border: 1px solid var(--line);
   }
 
   .brand,
@@ -392,9 +416,26 @@ small {
     border-left: 0;
   }
 
+  .brand {
+    min-height: 48px;
+    padding: 8px 10px;
+    font-size: 23px;
+    line-height: 0.88;
+  }
+
   .nav-cell {
     min-height: 48px;
-    border-top: 1px solid var(--line);
+    padding: 8px 10px;
+    align-items: center;
+    border-top: 0;
+    border-left: 1px solid var(--line);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  #activeMode,
+  #state {
+    display: none;
   }
 
   .control-panel,
@@ -402,12 +443,140 @@ small {
     grid-column: auto;
   }
 
-  .terminal-wrap {
-    height: 72vh;
-    margin: 0 0 16px;
+  .app-grid {
+    min-height: 0;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    border: 0;
+    gap: 8px;
   }
 
-  .mode-grid {
+  .terminal-wrap {
+    order: 1;
+    height: auto;
+    min-height: 0;
+    margin: 0;
+    border-width: 3px;
+  }
+
+  .terminal-titlebar {
+    min-height: 38px;
+    padding: 0 9px;
+    gap: 8px;
+    font-size: 11px;
+  }
+
+  .terminal-path {
+    display: none;
+  }
+
+  #terminal {
+    padding: 10px;
+    touch-action: manipulation;
+  }
+
+  .control-panel {
+    order: 2;
+    display: grid;
     grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 0;
+    border: 0;
+  }
+
+  .panel-section {
+    min-width: 0;
+  }
+
+  .panel-section small,
+  .info-list {
+    display: none;
+  }
+
+  .mode-grid,
+  .quick-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .quick-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .mode,
+  .quick {
+    min-height: 42px;
+    padding: 0 4px;
+    text-align: center;
+    font-size: 12px;
+  }
+
+  .mode.active::after {
+    width: 0.9ch;
+    margin-left: 0.35ch;
+  }
+
+  .mobile-composer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    border-top: 1px solid rgba(255, 230, 203, 0.16);
+    background: rgba(2, 9, 9, 0.98);
+  }
+
+  .mobile-composer input {
+    min-width: 0;
+    height: 46px;
+    border: 0;
+    border-right: 1px solid var(--line);
+    padding: 0 12px;
+    background: transparent;
+    color: var(--midground);
+    font: 16px/1.2 "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+    letter-spacing: 0;
+    outline: none;
+  }
+
+  .mobile-composer input::placeholder {
+    color: rgba(255, 230, 203, 0.44);
+  }
+
+  .mobile-composer button {
+    min-width: 76px;
+    min-height: 46px;
+    padding: 0 12px;
+    color: var(--gold);
+    font-size: 12px;
+  }
+
+  .site-footer {
+    display: none;
+  }
+}
+
+@media (max-width: 430px) {
+  .shell {
+    padding:
+      max(6px, env(safe-area-inset-top))
+      max(6px, env(safe-area-inset-right))
+      max(6px, env(safe-area-inset-bottom))
+      max(6px, env(safe-area-inset-left));
+  }
+
+  .brand {
+    font-size: 20px;
+  }
+
+  .nav-cell {
+    font-size: 11px;
+    padding: 7px 8px;
+  }
+
+  .mode,
+  .quick {
+    min-height: 40px;
+    font-size: 11px;
+  }
+
+  .quick {
+    font-size: 10px;
   }
 }
