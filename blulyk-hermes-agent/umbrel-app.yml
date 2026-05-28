@@ -4,7 +4,7 @@ name: Hermes Agent
 tagline: Autonomous AI agent with memory, skills and messaging
 icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-hermes-agent/icon.svg
 category: ai
-version: "0.14.8"
+version: "0.14.9"
 port: 9119
 description: >-
   Hermes Agent is the self-improving AI agent from Nous Research. It runs on
@@ -34,6 +34,6 @@ defaultPassword: ""
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store
 releaseNotes: >-
-  v0.14.8 tightens the iPhone layout so the left side no longer overflows,
-  reduces mobile terminal/control text sizes to preserve content, and adds
-  command autofill suggestions to the mobile composer.
+  v0.14.9 fixes iPhone keyboard input by removing Safari's fragile datalist
+  path, adding explicit mobile send handling, and restoring tap-to-focus for
+  the terminal surface.

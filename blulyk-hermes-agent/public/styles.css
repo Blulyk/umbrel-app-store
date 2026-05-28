@@ -575,6 +575,8 @@ small {
   }
 
   .mobile-composer input {
+    appearance: none;
+    -webkit-appearance: none;
     min-width: 0;
     height: 46px;
     border: 0;
@@ -584,6 +586,7 @@ small {
     color: var(--midground);
     font: 16px/1.2 "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
     letter-spacing: 0;
+    text-transform: none;
     outline: none;
   }
 

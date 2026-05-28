@@ -127,12 +127,8 @@ document.querySelectorAll(".quick").forEach((button) => {
 });
 
 const mobileInput = document.getElementById("mobileInput");
+const mobileSend = document.getElementById("mobileSend");
 const mobileSuggestions = document.getElementById("mobileSuggestions");
-const commandDatalist = document.getElementById("commandSuggestions");
-
-commandDatalist.innerHTML = commandSuggestions
-  .map((command) => `<option value="${command}"></option>`)
-  .join("");
 
 function updateComposerSuggestions() {
   const value = mobileInput.value.trim().toLowerCase();
@@ -144,6 +140,16 @@ function updateComposerSuggestions() {
     .map((command) => `<button type="button" data-command="${command}">${command}</button>`)
     .join("");
   mobileSuggestions.classList.toggle("hidden", matches.length === 0 || (!value.startsWith("/") && value !== ""));
+}
+
+function sendComposerValue() {
+  const value = mobileInput.value.trim();
+  if (!value) return;
+  send({ type: "input", data: `${value}\n` });
+  mobileInput.value = "";
+  updateComposerSuggestions();
+  mobileInput.focus();
+  setTimeout(resize, 80);
 }
 
 mobileSuggestions.addEventListener("click", (event) => {
@@ -164,15 +170,21 @@ mobileInput.addEventListener("keydown", (event) => {
   mobileInput.value = first.dataset.command;
   updateComposerSuggestions();
 });
+mobileInput.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  sendComposerValue();
+});
+
+mobileSend.addEventListener("click", sendComposerValue);
 
 document.getElementById("mobileComposer").addEventListener("submit", (event) => {
   event.preventDefault();
-  const value = mobileInput.value.trim();
-  if (!value) return;
-  send({ type: "input", data: `${value}\n` });
-  mobileInput.value = "";
-  updateComposerSuggestions();
-  setTimeout(resize, 80);
+  sendComposerValue();
+});
+
+document.getElementById("terminal").addEventListener("pointerdown", () => {
+  terminal.focus();
 });
 
 updateComposerSuggestions();
