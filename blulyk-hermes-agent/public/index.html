@@ -71,7 +71,9 @@
         </div>
         <div id="terminal"></div>
         <form class="mobile-composer" id="mobileComposer" autocomplete="off">
-          <input id="mobileInput" type="text" inputmode="text" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Mensaje o /comando">
+          <div class="mobile-suggestions" id="mobileSuggestions" aria-label="Sugerencias de comandos"></div>
+          <input id="mobileInput" type="text" inputmode="text" autocapitalize="none" autocorrect="off" spellcheck="false" list="commandSuggestions" placeholder="Mensaje o /comando">
+          <datalist id="commandSuggestions"></datalist>
           <button type="submit">Enviar</button>
         </form>
       </section>

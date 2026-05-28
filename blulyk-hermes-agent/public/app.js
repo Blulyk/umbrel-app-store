@@ -9,13 +9,24 @@ const modes = {
 let currentMode = "chat";
 let socket;
 const isTouchDevice = matchMedia("(pointer: coarse)").matches;
+const commandSuggestions = [
+  "/help",
+  "/model",
+  "/status",
+  "/clear",
+  "/reset",
+  "/exit",
+  "hermes setup",
+  "hermes model",
+  "hermes status"
+];
 
 const terminal = new Terminal({
   cursorBlink: true,
   convertEol: true,
   fontFamily: '"Cascadia Mono", "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace',
-  fontSize: isTouchDevice ? 13 : 15,
-  lineHeight: isTouchDevice ? 1.25 : 1.35,
+  fontSize: isTouchDevice ? 12 : 15,
+  lineHeight: isTouchDevice ? 1.22 : 1.35,
   letterSpacing: 0,
   scrollback: 4000,
   theme: {
@@ -108,19 +119,61 @@ document.getElementById("clearTerminal").addEventListener("click", () => termina
 
 document.querySelectorAll(".quick").forEach((button) => {
   button.addEventListener("click", () => {
-    terminal.focus();
     send({ type: "input", data: `${button.dataset.send}\n` });
+    document.getElementById("mobileInput").value = button.dataset.send;
+    updateComposerSuggestions();
+    if (!isTouchDevice) terminal.focus();
   });
+});
+
+const mobileInput = document.getElementById("mobileInput");
+const mobileSuggestions = document.getElementById("mobileSuggestions");
+const commandDatalist = document.getElementById("commandSuggestions");
+
+commandDatalist.innerHTML = commandSuggestions
+  .map((command) => `<option value="${command}"></option>`)
+  .join("");
+
+function updateComposerSuggestions() {
+  const value = mobileInput.value.trim().toLowerCase();
+  const matches = commandSuggestions
+    .filter((command) => !value || command.toLowerCase().startsWith(value))
+    .slice(0, 5);
+
+  mobileSuggestions.innerHTML = matches
+    .map((command) => `<button type="button" data-command="${command}">${command}</button>`)
+    .join("");
+  mobileSuggestions.classList.toggle("hidden", matches.length === 0 || (!value.startsWith("/") && value !== ""));
+}
+
+mobileSuggestions.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-command]");
+  if (!button) return;
+  mobileInput.value = button.dataset.command;
+  updateComposerSuggestions();
+  mobileInput.focus();
+});
+
+mobileInput.addEventListener("input", updateComposerSuggestions);
+mobileInput.addEventListener("focus", updateComposerSuggestions);
+mobileInput.addEventListener("keydown", (event) => {
+  if (event.key !== "Tab") return;
+  const first = mobileSuggestions.querySelector("button[data-command]");
+  if (!first || mobileSuggestions.classList.contains("hidden")) return;
+  event.preventDefault();
+  mobileInput.value = first.dataset.command;
+  updateComposerSuggestions();
 });
 
 document.getElementById("mobileComposer").addEventListener("submit", (event) => {
   event.preventDefault();
-  const input = document.getElementById("mobileInput");
-  const value = input.value.trim();
+  const value = mobileInput.value.trim();
   if (!value) return;
   send({ type: "input", data: `${value}\n` });
-  input.value = "";
+  mobileInput.value = "";
+  updateComposerSuggestions();
   setTimeout(resize, 80);
 });
 
+updateComposerSuggestions();
 connect("chat");
