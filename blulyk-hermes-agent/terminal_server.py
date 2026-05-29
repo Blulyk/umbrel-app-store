@@ -15,13 +15,14 @@ ROOT = Path(__file__).parent
 PUBLIC = ROOT / "public"
 DATA_DIR = Path(os.environ.get("HERMES_HOME", "/opt/data"))
 PORT = int(os.environ.get("PORT", "9119"))
+HERMES_BIN = "/opt/hermes/.venv/bin/hermes"
 
 COMMANDS = {
-    "chat": ["/bin/bash", "-lc", "hermes --continue || hermes"],
-    "control": ["hermes", "--tui"],
-    "setup": ["hermes", "setup"],
-    "model": ["hermes", "model"],
-    "status": ["hermes", "status"],
+    "chat": ["/bin/bash", "-c", f"{HERMES_BIN} --continue || {HERMES_BIN}"],
+    "control": [HERMES_BIN, "--tui"],
+    "setup": [HERMES_BIN, "setup"],
+    "model": [HERMES_BIN, "model"],
+    "status": [HERMES_BIN, "status"],
     "shell": ["/bin/bash"],
 }
 
