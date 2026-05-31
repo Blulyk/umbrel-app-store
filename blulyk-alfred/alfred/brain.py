@@ -120,6 +120,8 @@ class JarvisBrain:
         await self._clear_response_cache()
 
     async def start_codex_device_login(self) -> dict[str, Any]:
+        if Path(self.settings.codex_home, "auth.json").exists():
+            return {"state": "connected", "brain": await self.status()}
         existing = self._codex_login_process
         if existing and existing.returncode is None:
             existing.terminate()
