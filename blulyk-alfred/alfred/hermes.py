@@ -78,18 +78,11 @@ class HermesClient:
         self, user_message: str, tool_context: dict[str, object]
     ) -> AsyncIterator[str]:
         ws_url = self._terminal_ws_url()
-        context_json = json.dumps(tool_context, ensure_ascii=False, separators=(",", ":"))
         safe_message = " ".join(user_message.split())
-        prompt = (
-            "ALFRED context follows as private telemetry JSON; do not dump it unless asked. "
-            f"Context: {context_json}. "
-            f"User request: {safe_message}. "
-            "Respond as ALFRED in the user's language. Be concise, useful, and ready to route actions."
-        )
         async with websockets.connect(ws_url, open_timeout=10, close_timeout=2) as websocket:
             await self._drain_initial_terminal(websocket)
-            await websocket.send(json.dumps({"type": "input", "data": prompt + "\n"}))
-            response = await self._collect_terminal_response(websocket, prompt)
+            await websocket.send(json.dumps({"type": "input", "data": safe_message + "\n"}))
+            response = await self._collect_terminal_response(websocket, safe_message)
 
         if response:
             yield response
@@ -140,7 +133,10 @@ def _clean_terminal_text(value: str) -> str:
 
 
 def _extract_answer(raw: str, prompt: str) -> str:
-    text = raw.replace(prompt, "")
+    text = raw
+    prompt_index = text.find(prompt)
+    if prompt_index >= 0:
+        text = text[prompt_index + len(prompt) :]
     markers = ["Respond as ALFRED", "User request:", "ALFRED context follows."]
     for marker in markers:
         index = text.rfind(marker)
@@ -154,7 +150,31 @@ def _extract_answer(raw: str, prompt: str) -> str:
             if lines and lines[-1]:
                 lines.append("")
             continue
-        if stripped in {">", "$"} or stripped.startswith("hermes "):
+        if _is_terminal_noise(stripped):
             continue
         lines.append(stripped)
     return "\n".join(lines).strip()
+
+
+def _is_terminal_noise(line: str) -> bool:
+    lower = line.lower()
+    if line in {">", "$", "❯"}:
+        return True
+    if line.startswith("─") or set(line) <= {"─", "│", "┌", "┐", "└", "┘", " "}:
+        return True
+    noise_fragments = [
+        "gpt-",
+        "msg=interrupt",
+        "/queue",
+        "/bg",
+        "/steer",
+        "ctrl+c",
+        "reflecting",
+        "tokens",
+        "alfred context follows",
+        "private telemetry",
+        "current local telemetry",
+        "context:",
+        "user request:",
+    ]
+    return any(fragment in lower for fragment in noise_fragments)
