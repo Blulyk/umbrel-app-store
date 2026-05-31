@@ -3,9 +3,10 @@ id: blulyk-alfred
 name: ALFRED
 tagline: Tactical local AI operations for Umbrel
 category: ai
-version: "0.1.0"
+version: "0.1.1"
 port: 8080
 path: ""
+icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-alfred/icon.svg
 description: >-
   ALFRED is a local-first tactical assistant for umbrelOS. It provides a
   polished operations console for host vitality, perimeter log assessment,
@@ -30,8 +31,9 @@ repo: https://github.com/Blulyk/umbrel-app-store
 support: https://github.com/Blulyk/umbrel-app-store/issues
 gallery: []
 releaseNotes: >-
-  Initial ALFRED release with next-generation Umbrel dashboard, local telemetry,
-  JSON tool routing, SQLite memory, Hermes LLM streaming, Docker inspection,
-  auth log threat scanning, and encrypted remote PC bridge.
+  Fixes Umbrel installation by switching ALFRED to a prebuilt GHCR image while
+  keeping the next-generation dashboard, local telemetry, JSON tool routing,
+  SQLite memory, Hermes LLM streaming, Docker inspection, auth log threat
+  scanning, and encrypted remote PC bridge.
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store
