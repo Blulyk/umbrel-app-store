@@ -1,7 +1,8 @@
 const state = {
   lastAssistantText: "",
   recognition: null,
-  listening: false
+  listening: false,
+  codexLoginTimer: null
 };
 
 const $ = (id) => document.getElementById(id);
@@ -24,11 +25,10 @@ $("reloadBrain").addEventListener("click", loadStatus);
 $("loadBridge").addEventListener("click", loadBridgeConfig);
 $("sendAssetCommand").addEventListener("click", sendAssetCommand);
 $("googleForm").addEventListener("submit", saveGoogleSettings);
+$("testGoogle").addEventListener("click", testGoogleSettings);
 $("codexAuthForm").addEventListener("submit", importCodexAuth);
-$("chatgptOAuthForm").addEventListener("submit", saveChatGPTOAuthSettings);
-$("oauthConnect").addEventListener("click", () => {
-  window.location.href = "/oauth/chatgpt/start";
-});
+$("startCodexLogin").addEventListener("click", startCodexLogin);
+$("openSystemsFromCore").addEventListener("click", () => document.querySelector('[data-section="systems"]').click());
 $("repeatVoice").addEventListener("click", () => speak(state.lastAssistantText, true));
 $("stopVoice").addEventListener("click", stopVoice);
 $("listenVoice").addEventListener("click", toggleDictation);
@@ -138,37 +138,74 @@ async function saveGoogleSettings(event) {
     $("googleKey").value = "";
     $("brainOutput").textContent = JSON.stringify(data.brain, null, 2);
     await loadStatus();
+    await testGoogleSettings();
   } catch (error) {
     $("brainOutput").textContent = error.message;
   }
 }
 
-async function saveChatGPTOAuthSettings(event) {
-  event.preventDefault();
-  const payload = {
-    client_id: $("oauthClientId").value.trim(),
-    client_secret: $("oauthClientSecret").value.trim(),
-    authorization_url: $("oauthAuthorizationUrl").value.trim(),
-    token_url: $("oauthTokenUrl").value.trim(),
-    scope: $("oauthScope").value.trim()
-  };
-  if (!payload.client_id || !payload.client_secret || !payload.authorization_url || !payload.token_url) {
-    $("brainOutput").textContent = "Completa client_id, client_secret, authorization_url y token_url.";
-    return;
-  }
-  $("brainOutput").textContent = "Guardando configuracion OAuth de ChatGPT.";
+async function testGoogleSettings() {
+  $("brainOutput").textContent = "Probando Google Gemini.";
   try {
-    const data = await getJson("/settings/chatgpt-oauth", {
+    const data = await getJson("/settings/google/test", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      headers: { "Content-Type": "application/json" }
     });
-    $("oauthClientSecret").value = "";
-    $("brainOutput").textContent = JSON.stringify(data.brain, null, 2);
+    $("brainOutput").textContent = `${data.ok ? "Google Gemini operativo." : "Google Gemini no respondio."}\n\n${data.response}\n\n${JSON.stringify(data.brain, null, 2)}`;
     await loadStatus();
   } catch (error) {
     $("brainOutput").textContent = error.message;
   }
+}
+
+async function startCodexLogin() {
+  $("codexLoginBox").hidden = false;
+  $("codexLoginStatus").textContent = "Generando codigo de OpenAI.";
+  $("brainOutput").textContent = "Iniciando sesion con Codex.";
+  try {
+    const data = await getJson("/settings/codex-login/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" }
+    });
+    renderCodexLogin(data.login);
+    if (state.codexLoginTimer) clearInterval(state.codexLoginTimer);
+    state.codexLoginTimer = setInterval(pollCodexLogin, 3000);
+  } catch (error) {
+    $("codexLoginStatus").textContent = error.message;
+    $("brainOutput").textContent = error.message;
+  }
+}
+
+async function pollCodexLogin() {
+  try {
+    const data = await getJson("/settings/codex-login/status");
+    renderCodexLogin(data.login);
+    if (["connected", "failed", "expired"].includes(data.login.state)) {
+      clearInterval(state.codexLoginTimer);
+      state.codexLoginTimer = null;
+      await loadStatus();
+    }
+  } catch (error) {
+    $("codexLoginStatus").textContent = error.message;
+  }
+}
+
+function renderCodexLogin(login) {
+  $("codexLoginBox").hidden = false;
+  if (login.url) {
+    $("codexLoginUrl").href = login.url;
+    $("codexLoginUrl").textContent = login.url;
+  }
+  if (login.code) $("codexLoginCode").textContent = login.code;
+  const labels = {
+    waiting_for_browser: "Abre OpenAI, introduce el codigo y autoriza Codex.",
+    connected: "Codex conectado con tu cuenta de OpenAI.",
+    failed: login.detail || "No se pudo completar el login.",
+    expired: login.detail || "El codigo ha caducado.",
+    idle: "Sin login activo."
+  };
+  $("codexLoginStatus").textContent = labels[login.state] || login.state || "Esperando.";
+  $("brainOutput").textContent = JSON.stringify(login.brain || login, null, 2);
 }
 
 async function importCodexAuth(event) {

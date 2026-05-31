@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import secrets
 import tempfile
@@ -30,6 +31,8 @@ class JarvisBrain:
     def __init__(self, settings: Settings, memory: MemoryStore) -> None:
         self.settings = settings
         self.memory = memory
+        self._codex_login_process: asyncio.subprocess.Process | None = None
+        self._codex_login: dict[str, Any] | None = None
 
     async def stream_chat(
         self, user_message: str, tool_context: dict[str, object]
@@ -89,6 +92,15 @@ class JarvisBrain:
         await self.memory.set_preference("google_api_key", api_key.strip())
         if model:
             await self.memory.set_preference("google_model", model.strip())
+        await self._clear_response_cache()
+
+    async def test_google(self) -> dict[str, Any]:
+        response = await self._ask_google("Responde exactamente: Gemini conectado.", {})
+        return {
+            "ok": bool(response) and not response.startswith("Google Gemini rechazo") and not response.startswith("No he podido contactar"),
+            "response": response or "Google Gemini no esta configurado.",
+            "brain": await self.status(),
+        }
 
     async def save_chatgpt_oauth(self, payload: dict[str, Any]) -> None:
         await self.memory.set_preference("chatgpt_oauth_config", payload)
@@ -105,6 +117,86 @@ class JarvisBrain:
             auth_path.chmod(0o600)
         except OSError:
             pass
+        await self._clear_response_cache()
+
+    async def start_codex_device_login(self) -> dict[str, Any]:
+        existing = self._codex_login_process
+        if existing and existing.returncode is None:
+            existing.terminate()
+            try:
+                await asyncio.wait_for(existing.wait(), timeout=4)
+            except asyncio.TimeoutError:
+                existing.kill()
+        codex_home = Path(self.settings.codex_home)
+        codex_home.mkdir(parents=True, exist_ok=True)
+        env = os.environ.copy()
+        env["CODEX_HOME"] = self.settings.codex_home
+        try:
+            process = await asyncio.create_subprocess_exec(
+                self.settings.codex_bin,
+                "login",
+                "--device-auth",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+                cwd="/tmp",
+            )
+        except OSError as exc:
+            return {
+                "state": "failed",
+                "detail": f"No he podido iniciar Codex CLI: {exc}",
+            }
+        self._codex_login_process = process
+        output = ""
+        deadline = time.monotonic() + 12
+        while time.monotonic() < deadline:
+            if process.stdout is None:
+                break
+            try:
+                chunk = await asyncio.wait_for(process.stdout.read(256), timeout=1)
+            except asyncio.TimeoutError:
+                continue
+            if not chunk:
+                break
+            output += chunk.decode(errors="replace")
+            parsed = _parse_codex_device_auth(output)
+            if parsed:
+                self._codex_login = {
+                    **parsed,
+                    "state": "waiting_for_browser",
+                    "started_at": int(time.time()),
+                    "expires_in_seconds": 900,
+                }
+                asyncio.create_task(self._watch_codex_login(process))
+                return self._codex_login
+        if process.returncode is None:
+            process.terminate()
+        return {
+            "state": "failed",
+            "detail": "Codex no devolvio enlace de autenticacion. Revisa que Codex CLI este instalado.",
+        }
+
+    async def codex_login_status(self) -> dict[str, Any]:
+        login = self._codex_login or {"state": "idle"}
+        process = self._codex_login_process
+        if process and process.returncode is None and login.get("state") == "waiting_for_browser":
+            return login
+        if Path(self.settings.codex_home, "auth.json").exists():
+            return {"state": "connected", "brain": await self.status()}
+        return login
+
+    async def _watch_codex_login(self, process: asyncio.subprocess.Process) -> None:
+        try:
+            await asyncio.wait_for(process.wait(), timeout=920)
+        except asyncio.TimeoutError:
+            process.kill()
+            self._codex_login = {"state": "expired", "detail": "El codigo de Codex ha caducado."}
+            return
+        if Path(self.settings.codex_home, "auth.json").exists() and process.returncode == 0:
+            self._codex_login = {"state": "connected", "detail": "Codex conectado con OpenAI."}
+            await self._clear_response_cache()
+        elif process.returncode != 0:
+            self._codex_login = {"state": "failed", "detail": "Codex no pudo completar el inicio de sesion."}
 
     async def _ask_codex(self, user_message: str, tool_context: dict[str, object]) -> str:
         status = await self._codex_status()
@@ -306,6 +398,9 @@ class JarvisBrain:
             cache = dict(list(cache.items())[-50:])
         await self.memory.set_preference("brain_response_cache", cache)
 
+    async def _clear_response_cache(self) -> None:
+        await self.memory.set_preference("brain_response_cache", {})
+
     async def _chatgpt_oauth_config(self) -> dict[str, str]:
         config = await self.memory.get_preference("chatgpt_oauth_config")
         if not isinstance(config, dict):
@@ -351,6 +446,22 @@ def _extract_gemini_text(data: dict[str, Any]) -> str:
             if part.get("text"):
                 parts.append(str(part["text"]))
     return "\n".join(parts).strip()
+
+
+def _parse_codex_device_auth(text: str) -> dict[str, str] | None:
+    clean = _strip_ansi(text)
+    url = re.search(r"https://auth\.openai\.com/codex/device", clean)
+    code = re.search(r"\b[A-Z0-9]{4}-[A-Z0-9]{5}\b", clean)
+    if not url or not code:
+        return None
+    return {
+        "url": url.group(0),
+        "code": code.group(0),
+    }
+
+
+def _strip_ansi(text: str) -> str:
+    return re.sub(r"\x1b\[[0-9;]*m", "", text)
 
 
 def clean_assistant_text(text: str) -> str:

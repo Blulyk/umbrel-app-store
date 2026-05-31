@@ -61,6 +61,11 @@ async def configure_google(request: GoogleSettingsRequest) -> dict[str, Any]:
     return {"ok": True, "brain": await brain.status()}
 
 
+@app.post("/settings/google/test")
+async def test_google() -> dict[str, Any]:
+    return await brain.test_google()
+
+
 @app.post("/settings/chatgpt-oauth")
 async def configure_chatgpt_oauth(request: ChatGPTOAuthSettingsRequest) -> dict[str, Any]:
     await brain.save_chatgpt_oauth(request.model_dump())
@@ -74,6 +79,16 @@ async def import_codex_auth(request: CodexAuthImportRequest) -> dict[str, Any]:
     except (ValueError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, "brain": await brain.status()}
+
+
+@app.post("/settings/codex-login/start")
+async def start_codex_login() -> dict[str, Any]:
+    return {"ok": True, "login": await brain.start_codex_device_login()}
+
+
+@app.get("/settings/codex-login/status")
+async def codex_login_status() -> dict[str, Any]:
+    return {"ok": True, "login": await brain.codex_login_status()}
 
 
 @app.get("/oauth/chatgpt/start")

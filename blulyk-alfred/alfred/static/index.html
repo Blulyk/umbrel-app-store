@@ -8,12 +8,12 @@
 </head>
 <body>
   <div class="app-shell">
-    <aside class="rail" aria-label="Navegacion">
+    <aside class="rail" aria-label="Navegacion principal">
       <div class="brand-mark">J</div>
-      <button class="rail-button active" data-section="bridge" title="Nucleo" aria-label="Nucleo">⌂</button>
-      <button class="rail-button" data-section="console" title="Consola" aria-label="Consola">⌁</button>
-      <button class="rail-button" data-section="systems" title="Sistemas" aria-label="Sistemas">◫</button>
-      <button class="rail-button" data-section="assets" title="Assets" aria-label="Assets">◇</button>
+      <button class="rail-button active" data-section="bridge" title="Nucleo" aria-label="Nucleo">Core</button>
+      <button class="rail-button" data-section="console" title="Chat" aria-label="Chat">Chat</button>
+      <button class="rail-button" data-section="systems" title="Sistemas" aria-label="Sistemas">Sys</button>
+      <button class="rail-button" data-section="assets" title="Assets" aria-label="Assets">Net</button>
     </aside>
 
     <main class="workspace">
@@ -24,26 +24,52 @@
         </div>
         <div class="top-actions">
           <span id="brainState" class="state-pill">Inicializando</span>
-          <button id="refreshAll" class="icon-button" title="Actualizar" aria-label="Actualizar">↻</button>
+          <button id="refreshAll" class="icon-button" title="Actualizar" aria-label="Actualizar">R</button>
         </div>
       </header>
 
       <section id="bridge" class="view active-view">
-        <div class="command-deck">
-          <div class="core-readout">
-            <div class="scan-field" aria-hidden="true">
-              <span></span><span></span><span></span><span></span><span></span>
+        <div class="hero-grid">
+          <section class="command-deck">
+            <div class="core-readout">
+              <div class="reactor" aria-hidden="true">
+                <div class="reactor-ring ring-a"></div>
+                <div class="reactor-ring ring-b"></div>
+                <div class="reactor-core"></div>
+                <div class="reactor-bars"><span></span><span></span><span></span><span></span><span></span></div>
+              </div>
+              <div class="briefing">
+                <p class="eyebrow">Cortex operativo</p>
+                <h2 id="briefingTitle">Esperando telemetria.</h2>
+                <p id="briefingText">El nucleo local esta preparando el estado operativo.</p>
+              </div>
             </div>
-            <div>
-              <p class="eyebrow">Cortex</p>
-              <h2 id="briefingTitle">Esperando telemetria.</h2>
-              <p id="briefingText">El nucleo local esta preparando el estado operativo.</p>
+            <form id="quickForm" class="quick-command">
+              <input id="quickInput" autocomplete="off" placeholder="Orden rapida para JARVIS">
+              <button class="send-button" title="Enviar" aria-label="Enviar">Go</button>
+            </form>
+          </section>
+
+          <section class="mind-panel">
+            <div class="panel-head compact-head"><h3>Cerebro</h3><button id="openSystemsFromCore" class="text-button" type="button">Configurar</button></div>
+            <div class="mind-stack">
+              <div class="mind-row">
+                <span>Primario</span>
+                <strong id="brainName">Codex</strong>
+                <small id="brainDetail">Sincronizando estado</small>
+              </div>
+              <div class="mind-row">
+                <span>Modo</span>
+                <strong>Local + nube</strong>
+                <small>Reflejos locales antes de gastar IA</small>
+              </div>
+              <div class="mind-row">
+                <span>Voz</span>
+                <strong>Navegador</strong>
+                <small>Dictado, lectura y parada manual</small>
+              </div>
             </div>
-          </div>
-          <form id="quickForm" class="quick-command">
-            <input id="quickInput" autocomplete="off" placeholder="Orden para JARVIS">
-            <button class="send-button" title="Enviar" aria-label="Enviar">↵</button>
-          </form>
+          </section>
         </div>
 
         <div class="metrics-grid">
@@ -51,24 +77,6 @@
           <article class="metric"><span>Memoria</span><strong id="ramMetric">--</strong><small>Presion RAM</small></article>
           <article class="metric"><span>Disco</span><strong id="diskMetric">--</strong><small>Volumen raiz</small></article>
           <article class="metric"><span>Perimetro</span><strong id="threatMetric">--</strong><small id="threatSummary">Sin escaneo</small></article>
-        </div>
-
-        <div class="mind-strip">
-          <section class="mind-card">
-            <span>Mente</span>
-            <strong id="brainName">Google Gemini</strong>
-            <small id="brainDetail">Sin configurar</small>
-          </section>
-          <section class="mind-card">
-            <span>Modo</span>
-            <strong>Reflejos + IA</strong>
-            <small>Local primero, nube cuando haga falta</small>
-          </section>
-          <section class="mind-card">
-            <span>Voz</span>
-            <strong>Navegador</strong>
-            <small>Dictado y respuesta hablada</small>
-          </section>
         </div>
 
         <div class="split">
@@ -86,49 +94,61 @@
       <section id="console" class="view">
         <section class="terminal">
           <div class="terminal-head">
-            <h2>Conversacion</h2>
+            <div>
+              <p class="eyebrow">Interfaz conversacional</p>
+              <h2>Chat</h2>
+            </div>
             <div class="console-actions">
               <label class="voice-toggle"><input id="voiceToggle" type="checkbox"><span>Voz</span></label>
-              <button id="listenVoice" class="icon-button" title="Dictar" aria-label="Dictar">●</button>
-              <button id="repeatVoice" class="icon-button" title="Repetir" aria-label="Repetir">V</button>
-              <button id="stopVoice" class="icon-button stop-button" title="Parar voz" aria-label="Parar voz">S</button>
-              <button id="clearConsole" class="icon-button" title="Limpiar" aria-label="Limpiar">X</button>
+              <button id="listenVoice" class="icon-button" title="Dictar" aria-label="Dictar">Mic</button>
+              <button id="repeatVoice" class="icon-button" title="Repetir" aria-label="Repetir">Rep</button>
+              <button id="stopVoice" class="icon-button stop-button" title="Parar voz" aria-label="Parar voz">Stop</button>
+              <button id="clearConsole" class="icon-button" title="Limpiar" aria-label="Limpiar">Clr</button>
             </div>
           </div>
           <div id="transcript" class="transcript" aria-live="polite"></div>
           <form id="chatForm" class="composer">
             <input id="promptInput" autocomplete="off" placeholder="Pregunta, orden o llamada JSON">
-            <button type="submit" class="send-button" title="Ejecutar" aria-label="Ejecutar">↵</button>
+            <button type="submit" class="send-button" title="Ejecutar" aria-label="Ejecutar">Go</button>
           </form>
         </section>
       </section>
 
       <section id="systems" class="view">
-        <div class="split">
-          <section class="panel">
+        <div class="systems-grid">
+          <section class="panel brain-config">
+            <div class="panel-head"><h3>Conexion OpenAI Codex</h3><button id="reloadBrain" class="text-button">Estado</button></div>
+            <div class="login-box">
+              <button id="startCodexLogin" class="primary-button" type="button">Iniciar sesion con OpenAI</button>
+              <div id="codexLoginBox" class="login-code" hidden>
+                <small>Abre el enlace y escribe el codigo.</small>
+                <a id="codexLoginUrl" href="#" target="_blank" rel="noopener">Abrir login de OpenAI</a>
+                <strong id="codexLoginCode">----</strong>
+                <span id="codexLoginStatus">Esperando autorizacion.</span>
+              </div>
+            </div>
+            <form id="codexAuthForm" class="settings-form hidden-legacy">
+              <input id="codexAuthFile" type="file" accept=".json,application/json">
+              <button class="text-button" type="submit">Importar auth.json</button>
+            </form>
+          </section>
+
+          <section class="panel brain-config">
+            <div class="panel-head"><h3>Fallback Google Gemini</h3><button id="testGoogle" class="text-button" type="button">Probar</button></div>
+            <form id="googleForm" class="settings-form google-form">
+              <input id="googleKey" type="password" autocomplete="off" placeholder="GOOGLE_API_KEY">
+              <input id="googleModel" autocomplete="off" placeholder="gemini-2.5-flash-lite">
+              <button class="text-button" type="submit">Guardar</button>
+            </form>
+          </section>
+
+          <section class="panel capabilities-panel">
             <div class="panel-head"><h3>Capacidades</h3><button id="reloadCapabilities" class="text-button">Actualizar</button></div>
             <div id="capabilityList" class="list"></div>
           </section>
-          <section class="panel">
-            <div class="panel-head"><h3>Mente y Fallback</h3><button id="reloadBrain" class="text-button">Estado</button></div>
-            <form id="googleForm" class="settings-form">
-              <input id="googleKey" type="password" autocomplete="off" placeholder="GOOGLE_API_KEY">
-              <input id="googleModel" autocomplete="off" placeholder="gemini-2.5-flash-lite">
-              <button class="text-button" type="submit">Guardar Google</button>
-            </form>
-            <form id="codexAuthForm" class="settings-form">
-              <input id="codexAuthFile" type="file" accept=".json,application/json">
-              <button class="text-button" type="submit">Importar Codex</button>
-            </form>
-            <form id="chatgptOAuthForm" class="settings-form oauth-form">
-              <input id="oauthClientId" autocomplete="off" placeholder="ChatGPT OAuth client_id">
-              <input id="oauthClientSecret" type="password" autocomplete="off" placeholder="client_secret">
-              <input id="oauthAuthorizationUrl" autocomplete="off" placeholder="authorization_url">
-              <input id="oauthTokenUrl" autocomplete="off" placeholder="token_url">
-              <input id="oauthScope" autocomplete="off" placeholder="scope">
-              <button class="text-button" type="submit">Guardar OAuth</button>
-              <button id="oauthConnect" class="text-button" type="button">Conectar</button>
-            </form>
+
+          <section class="panel status-panel">
+            <div class="panel-head"><h3>Estado de mente</h3></div>
             <pre id="brainOutput" class="output"></pre>
           </section>
         </div>
