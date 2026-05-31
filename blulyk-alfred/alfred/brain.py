@@ -69,14 +69,23 @@ class JarvisBrain:
 
     async def status(self) -> dict[str, Any]:
         google_key = bool(await self._google_key())
+        google_last_status = await self.memory.get_preference("google_last_status")
+        google_state = "needs_key"
+        google_detail = "Falta GOOGLE_API_KEY."
+        if google_key:
+            google_state = "configured"
+            google_detail = "Google Gemini configurado; ejecuta Probar Gemini para validar permisos."
+        if isinstance(google_last_status, dict) and google_key:
+            google_state = "ready" if google_last_status.get("ok") else "error"
+            google_detail = str(google_last_status.get("detail") or google_detail)
         codex_status = await self._codex_status()
         return {
             "primary": codex_status,
             "fallback": {
                 "provider": "google-gemini",
-                "state": "ready" if google_key else "needs_key",
+                "state": google_state,
                 "model": await self._google_model(),
-                "detail": "Google Gemini fallback conectado." if google_key else "Falta GOOGLE_API_KEY.",
+                "detail": google_detail,
             },
             "optimization": {
                 "local_reflex_first": True,
@@ -92,12 +101,22 @@ class JarvisBrain:
         await self.memory.set_preference("google_api_key", api_key.strip())
         if model:
             await self.memory.set_preference("google_model", model.strip())
+        await self.memory.set_preference("google_last_status", {"ok": False, "detail": "Pendiente de prueba."})
         await self._clear_response_cache()
 
     async def test_google(self) -> dict[str, Any]:
         response = await self._ask_google("Responde exactamente: Gemini conectado.", {})
+        ok = bool(response) and not response.startswith("Google Gemini rechazo") and not response.startswith("No he podido contactar")
+        await self.memory.set_preference(
+            "google_last_status",
+            {
+                "ok": ok,
+                "detail": "Google Gemini fallback conectado." if ok else response or "Google Gemini no esta configurado.",
+                "tested_at": int(time.time()),
+            },
+        )
         return {
-            "ok": bool(response) and not response.startswith("Google Gemini rechazo") and not response.startswith("No he podido contactar"),
+            "ok": ok,
             "response": response or "Google Gemini no esta configurado.",
             "brain": await self.status(),
         }
@@ -289,7 +308,6 @@ class JarvisBrain:
         if not api_key:
             return ""
         model = await self._google_model()
-        endpoint = f"{self.settings.google_base_url.rstrip('/')}/models/{model}:generateContent"
         compact_context = _compact_context(tool_context)
         payload = {
             "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
@@ -313,15 +331,23 @@ class JarvisBrain:
             },
         }
         headers = {"x-goog-api-key": api_key, "Content-Type": "application/json"}
+        fallback_models = [model, "gemini-2.0-flash-lite", "gemini-1.5-flash"]
+        last_error = ""
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(24.0, read=24.0)) as client:
-                response = await client.post(endpoint, json=payload, headers=headers)
-                if response.status_code >= 400:
-                    return _google_error_message(response)
-                data = response.json()
+                for candidate_model in dict.fromkeys(item for item in fallback_models if item):
+                    endpoint = f"{self.settings.google_base_url.rstrip('/')}/models/{candidate_model}:generateContent"
+                    response = await client.post(endpoint, json=payload, headers=headers)
+                    if response.status_code < 400:
+                        if candidate_model != model:
+                            await self.memory.set_preference("google_model", candidate_model)
+                        return _extract_gemini_text(response.json())
+                    last_error = _google_error_message(response)
+                    if response.status_code not in {403, 404}:
+                        break
         except httpx.HTTPError as exc:
             return f"No he podido contactar con Google Gemini: {exc}"
-        return _extract_gemini_text(data)
+        return last_error
 
     async def _google_key(self) -> str:
         saved = await self.memory.get_preference("google_api_key")
