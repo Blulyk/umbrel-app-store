@@ -13,7 +13,7 @@ from alfred.brain import JarvisBrain
 from alfred.config import get_settings
 from alfred.docker_control import docker_summary
 from alfred.memory import MemoryStore
-from alfred.schemas import AssetCommandRequest, ChatGPTOAuthSettingsRequest, ChatRequest, GoogleSettingsRequest, ToolCallRequest
+from alfred.schemas import AssetCommandRequest, ChatGPTOAuthSettingsRequest, ChatRequest, CodexAuthImportRequest, GoogleSettingsRequest, ToolCallRequest
 from alfred.threats import scan_auth_log
 from alfred.tool_router import ToolRouter
 from alfred.vitals import vitals_payload
@@ -47,7 +47,7 @@ async def status() -> dict[str, Any]:
         "identity": {
             "name": "JARVIS",
             "full_name": "Just A Rather Very Intelligent System",
-            "mode": "ChatGPT OAuth prepared with Google Gemini fallback and local reflex orchestration",
+            "mode": "Codex ChatGPT sign-in with Google Gemini fallback and local reflex orchestration",
         },
         "brain": await brain.status(),
         "context": context,
@@ -64,6 +64,15 @@ async def configure_google(request: GoogleSettingsRequest) -> dict[str, Any]:
 @app.post("/settings/chatgpt-oauth")
 async def configure_chatgpt_oauth(request: ChatGPTOAuthSettingsRequest) -> dict[str, Any]:
     await brain.save_chatgpt_oauth(request.model_dump())
+    return {"ok": True, "brain": await brain.status()}
+
+
+@app.post("/settings/codex-auth")
+async def import_codex_auth(request: CodexAuthImportRequest) -> dict[str, Any]:
+    try:
+        await brain.save_codex_auth(request.auth_json)
+    except (ValueError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, "brain": await brain.status()}
 
 
@@ -208,7 +217,7 @@ async def maybe_answer_locally(message: str) -> str | None:
         return format_briefing(context, await brain.status())
     if normalized in {"herramientas", "capacidades", "tools", "ayuda", "que puedes hacer?", "qué puedes hacer?", "que puedes hacer", "qué puedes hacer"}:
         names = ", ".join(item["name"] for item in tools.catalog())
-        return f"Puedo vigilar Umbrel, leer telemetria, revisar Docker, consultar memoria, controlar assets remotos permitidos, hablar por voz en el navegador y delegar razonamiento profundo a Google Gemini como fallback. ChatGPT OAuth queda preparado para cuando exista un flujo oficial utilizable como backend. Capacidades locales: {names}."
+        return f"Puedo vigilar Umbrel, leer telemetria, revisar Docker, consultar memoria, controlar assets remotos permitidos, hablar por voz en el navegador y delegar razonamiento profundo a Codex con Sign in with ChatGPT. Si Codex no esta listo, uso Google Gemini como fallback. Capacidades locales: {names}."
     if normalized in {"contenedores", "docker", "containers"}:
         data = await asyncio.to_thread(docker_summary, settings)
         if not data.get("available"):
@@ -225,7 +234,7 @@ def format_briefing(context: dict[str, Any], brain_state: dict[str, Any]) -> str
     assets_data = context["assets"]
     primary = brain_state.get("primary", {})
     fallback = brain_state.get("fallback", {})
-    primary_state = primary.get("state", "not_configured")
+    primary_state = primary.get("state", "needs_auth")
     fallback_state = fallback.get("state", "needs_key")
     fallback_model = fallback.get("model", "google")
     docker_text = "Docker no disponible"
@@ -234,7 +243,7 @@ def format_briefing(context: dict[str, Any], brain_state: dict[str, Any]) -> str
         docker_text = f"{running}/{len(docker_data.get('containers', []))} contenedores activos"
     return "\n".join(
         [
-            f"JARVIS online. ChatGPT OAuth: {primary_state}. Google fallback: {fallback_state} ({fallback_model}).",
+            f"JARVIS online. Codex: {primary_state}. Google fallback: {fallback_state} ({fallback_model}).",
             f"Sistema: {vitals_data['status']} | CPU {vitals_data['cpu_percent']:.0f}% | RAM {vitals_data['ram_percent']:.0f}% | Disco {vitals_data['disk_percent']:.0f}%.",
             f"Infraestructura: {docker_text}. Assets conectados: {len(assets_data)}.",
         ]

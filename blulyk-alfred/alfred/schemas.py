@@ -28,3 +28,7 @@ class ChatGPTOAuthSettingsRequest(BaseModel):
     authorization_url: str = Field(min_length=8, max_length=1000)
     token_url: str = Field(min_length=8, max_length=1000)
     scope: str = Field(default="", max_length=500)
+
+
+class CodexAuthImportRequest(BaseModel):
+    auth_json: str = Field(min_length=20, max_length=20000)

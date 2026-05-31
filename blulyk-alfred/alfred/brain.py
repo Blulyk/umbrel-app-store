@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import shutil
 import secrets
+import tempfile
 import time
+import asyncio
 from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
@@ -34,23 +39,36 @@ class JarvisBrain:
             yield cached
             return
 
+        codex_error = ""
+        response = await self._ask_codex(user_message, tool_context)
+        if response:
+            if _is_cacheable_response(response):
+                await self._cache_set(user_message, tool_context, response)
+                yield response
+                return
+            codex_error = response
+
         response = await self._ask_google(user_message, tool_context)
         if response:
-            if not response.startswith("Google Gemini rechazo") and not response.startswith("No he podido contactar"):
+            if _is_cacheable_response(response):
                 await self._cache_set(user_message, tool_context, response)
             yield response
             return
 
+        if codex_error:
+            yield codex_error
+            return
+
         yield (
-            "Mente externa no configurada. Conecta Google Gemini como fallback en Sistemas > Google, "
-            "y deja ChatGPT OAuth preparado cuando OpenAI publique un flujo de inferencia por OAuth para suscripciones."
+            "Mente externa no configurada. Conecta Codex con ChatGPT importando su auth.json en /data/codex/auth.json "
+            "o configura Google Gemini como fallback en Sistemas > Google."
         )
 
     async def status(self) -> dict[str, Any]:
         google_key = bool(await self._google_key())
-        chatgpt_oauth = await self._chatgpt_oauth_status()
+        codex_status = await self._codex_status()
         return {
-            "primary": chatgpt_oauth,
+            "primary": codex_status,
             "fallback": {
                 "provider": "google-gemini",
                 "state": "ready" if google_key else "needs_key",
@@ -61,7 +79,9 @@ class JarvisBrain:
                 "local_reflex_first": True,
                 "compact_context": True,
                 "response_cache": True,
-                "max_output_tokens": 700,
+                "codex_sandbox": "read-only",
+                "codex_timeout_seconds": self.settings.codex_timeout_seconds,
+                "google_max_output_tokens": 700,
             },
         }
 
@@ -72,6 +92,100 @@ class JarvisBrain:
 
     async def save_chatgpt_oauth(self, payload: dict[str, Any]) -> None:
         await self.memory.set_preference("chatgpt_oauth_config", payload)
+
+    async def save_codex_auth(self, auth_json: str) -> None:
+        payload = json.loads(auth_json)
+        if not isinstance(payload, dict) or payload.get("auth_mode") != "chatgpt" or not isinstance(payload.get("tokens"), dict):
+            raise ValueError("auth.json de Codex invalido.")
+        codex_home = Path(self.settings.codex_home)
+        codex_home.mkdir(parents=True, exist_ok=True)
+        auth_path = codex_home / "auth.json"
+        auth_path.write_text(json.dumps(payload), encoding="utf-8")
+        try:
+            auth_path.chmod(0o600)
+        except OSError:
+            pass
+
+    async def _ask_codex(self, user_message: str, tool_context: dict[str, object]) -> str:
+        status = await self._codex_status()
+        if status["state"] != "ready":
+            return ""
+
+        compact_context = _compact_context(tool_context)
+        prompt = (
+            f"{SYSTEM_PROMPT}\n\n"
+            "Responde solo con la respuesta final para Rafael. No incluyas trazas, comandos, JSONL, logs, "
+            "marcadores de terminal ni explicaciones sobre Codex. Si falta informacion, dilo de forma breve.\n\n"
+            "Contexto local compacto:\n"
+            + json.dumps(compact_context, ensure_ascii=False)
+            + "\n\nPeticion:\n"
+            + user_message
+        )
+
+        with tempfile.TemporaryDirectory(prefix="jarvis-codex-") as temp_dir:
+            output_path = Path(temp_dir) / "final.txt"
+            command = [
+                self.settings.codex_bin,
+                "--ask-for-approval",
+                "never",
+                "exec",
+                "--skip-git-repo-check",
+                "--ephemeral",
+                "--ignore-rules",
+                "--sandbox",
+                "read-only",
+                "--model",
+                self.settings.codex_model,
+                "--output-last-message",
+                str(output_path),
+                "-",
+            ]
+            env = os.environ.copy()
+            env["CODEX_HOME"] = self.settings.codex_home
+            env.setdefault("HOME", "/data")
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    *command,
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.PIPE,
+                    env=env,
+                    cwd="/tmp",
+                )
+                _, stderr = await asyncio.wait_for(
+                    process.communicate(prompt.encode()),
+                    timeout=self.settings.codex_timeout_seconds,
+                )
+            except (OSError, asyncio.TimeoutError):
+                return ""
+            if process.returncode != 0:
+                return _codex_error_message(stderr.decode(errors="replace"))
+            try:
+                return clean_assistant_text(output_path.read_text(encoding="utf-8"))
+            except OSError:
+                return ""
+
+    async def _codex_status(self) -> dict[str, Any]:
+        auth_path = Path(self.settings.codex_home) / "auth.json"
+        codex_bin = shutil.which(self.settings.codex_bin) or self.settings.codex_bin
+        auth_ready = auth_path.exists()
+        binary_ready = bool(shutil.which(self.settings.codex_bin) or Path(self.settings.codex_bin).exists())
+        if auth_ready and binary_ready:
+            state = "ready"
+            detail = "Codex CLI conectado con auth.json de ChatGPT."
+        elif not binary_ready:
+            state = "missing_binary"
+            detail = "Codex CLI no esta instalado en el contenedor."
+        else:
+            state = "needs_auth"
+            detail = "Falta /data/codex/auth.json. Importa el auth.json de Codex para usar Sign in with ChatGPT."
+        return {
+            "provider": "codex-chatgpt-oauth",
+            "state": state,
+            "model": self.settings.codex_model,
+            "binary": codex_bin,
+            "detail": detail,
+        }
 
     async def _ask_google(self, user_message: str, tool_context: dict[str, object]) -> str:
         api_key = await self._google_key()
@@ -124,7 +238,7 @@ class JarvisBrain:
         config = await self.memory.get_preference("chatgpt_oauth_config")
         token = await self.memory.get_preference("chatgpt_oauth_token")
         if token:
-            state = "connected_waiting_official_inference"
+            state = "connected"
         elif config:
             state = "configured_waiting_connection"
         else:
@@ -133,7 +247,7 @@ class JarvisBrain:
             "provider": "chatgpt-oauth",
             "state": state,
             "detail": (
-                "OAuth conectado, pero ChatGPT no expone un endpoint oficial para usar la suscripcion como backend."
+                "OAuth generico conectado."
                 if token
                 else "OAuth config guardada. Abre la conexion desde Sistemas para completar el intercambio de codigo."
                 if config
@@ -234,6 +348,55 @@ def _extract_gemini_text(data: dict[str, Any]) -> str:
             if part.get("text"):
                 parts.append(str(part["text"]))
     return "\n".join(parts).strip()
+
+
+def clean_assistant_text(text: str) -> str:
+    lines = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped and not _is_terminal_noise(stripped):
+            lines.append(stripped)
+    return "\n".join(lines).strip()
+
+
+def _is_terminal_noise(line: str) -> bool:
+    lower = line.lower()
+    if line in {">", "$", "❯"}:
+        return True
+    if all(char in "-_|+=~: .[]()0123456789" for char in line) and len(line) >= 12:
+        return True
+    fragments = [
+        "msg=interrupt",
+        "/queue",
+        "/bg",
+        "/steer",
+        "ctrl+c",
+        "tokens",
+        "private telemetry",
+        "current local telemetry",
+        "codex exec",
+    ]
+    return any(fragment in lower for fragment in fragments)
+
+
+def _is_cacheable_response(response: str) -> bool:
+    prefixes = [
+        "Google Gemini rechazo",
+        "No he podido contactar",
+        "Codex no pudo",
+        "Codex necesita",
+        "Mente externa no configurada",
+    ]
+    return bool(response.strip()) and not any(response.startswith(prefix) for prefix in prefixes)
+
+
+def _codex_error_message(stderr: str) -> str:
+    lower = stderr.lower()
+    if "auth" in lower or "login" in lower:
+        return "Codex necesita autenticacion. Importa el auth.json de Codex en /data/codex/auth.json."
+    if "model" in lower:
+        return "Codex no pudo usar el modelo configurado. Revisa JARVIS_CODEX_MODEL."
+    return "Codex no pudo devolver una respuesta final; uso Gemini si esta configurado."
 
 
 def _google_error_message(response: httpx.Response) -> str:

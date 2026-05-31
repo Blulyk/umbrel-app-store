@@ -24,6 +24,7 @@ $("reloadBrain").addEventListener("click", loadStatus);
 $("loadBridge").addEventListener("click", loadBridgeConfig);
 $("sendAssetCommand").addEventListener("click", sendAssetCommand);
 $("googleForm").addEventListener("submit", saveGoogleSettings);
+$("codexAuthForm").addEventListener("submit", importCodexAuth);
 $("chatgptOAuthForm").addEventListener("submit", saveChatGPTOAuthSettings);
 $("oauthConnect").addEventListener("click", () => {
   window.location.href = "/oauth/chatgpt/start";
@@ -98,14 +99,14 @@ async function loadStatus() {
 
   const primary = brain.primary || {};
   const fallback = brain.fallback || {};
+  const primaryReady = primary.state === "ready";
   const fallbackReady = fallback.state === "ready";
-  const oauthReady = primary.state && primary.state !== "not_configured";
 
-  $("brainState").textContent = fallbackReady ? "Google listo" : oauthReady ? "OAuth preparado" : "Configurar mente";
+  $("brainState").textContent = primaryReady ? "Codex listo" : fallbackReady ? "Google listo" : "Configurar Codex";
   $("briefingTitle").textContent = vitals.status === "Nominal" ? "Sistemas nominales." : vitals.status;
-  $("briefingText").textContent = `Google: ${fallback.state || "needs_key"}. ChatGPT OAuth: ${primary.state || "not_configured"}. ${vitals.notes.join(" ")}`;
-  $("brainName").textContent = `${fallback.provider || "google-gemini"} / ${fallback.model || "gemini"}`;
-  $("brainDetail").textContent = `${fallback.detail || ""} ${primary.detail || ""}`.trim();
+  $("briefingText").textContent = `Codex: ${primary.state || "needs_auth"}. Google: ${fallback.state || "needs_key"}. ${vitals.notes.join(" ")}`;
+  $("brainName").textContent = `${primary.provider || "codex-chatgpt-oauth"} / ${primary.model || "codex"}`;
+  $("brainDetail").textContent = `${primary.detail || ""} ${fallback.detail || ""}`.trim();
   $("cpuMetric").textContent = percent(vitals.cpu_percent);
   $("ramMetric").textContent = percent(vitals.ram_percent);
   $("diskMetric").textContent = percent(vitals.disk_percent);
@@ -163,6 +164,29 @@ async function saveChatGPTOAuthSettings(event) {
       body: JSON.stringify(payload)
     });
     $("oauthClientSecret").value = "";
+    $("brainOutput").textContent = JSON.stringify(data.brain, null, 2);
+    await loadStatus();
+  } catch (error) {
+    $("brainOutput").textContent = error.message;
+  }
+}
+
+async function importCodexAuth(event) {
+  event.preventDefault();
+  const file = $("codexAuthFile").files[0];
+  if (!file) {
+    $("brainOutput").textContent = "Selecciona el auth.json de Codex.";
+    return;
+  }
+  $("brainOutput").textContent = "Importando auth.json de Codex.";
+  try {
+    const authJson = await file.text();
+    const data = await getJson("/settings/codex-auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ auth_json: authJson })
+    });
+    $("codexAuthFile").value = "";
     $("brainOutput").textContent = JSON.stringify(data.brain, null, 2);
     await loadStatus();
   } catch (error) {
