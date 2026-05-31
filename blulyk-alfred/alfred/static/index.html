@@ -23,7 +23,7 @@
           <h1>JARVIS</h1>
         </div>
         <div class="top-actions">
-          <span id="hermesState" class="state-pill">Inicializando</span>
+          <span id="brainState" class="state-pill">Inicializando</span>
           <button id="refreshAll" class="icon-button" title="Actualizar" aria-label="Actualizar">↻</button>
         </div>
       </header>
@@ -51,6 +51,24 @@
           <article class="metric"><span>Memoria</span><strong id="ramMetric">--</strong><small>Presion RAM</small></article>
           <article class="metric"><span>Disco</span><strong id="diskMetric">--</strong><small>Volumen raiz</small></article>
           <article class="metric"><span>Perimetro</span><strong id="threatMetric">--</strong><small id="threatSummary">Sin escaneo</small></article>
+        </div>
+
+        <div class="mind-strip">
+          <section class="mind-card">
+            <span>Mente</span>
+            <strong id="brainName">OpenAI</strong>
+            <small id="brainDetail">Sin configurar</small>
+          </section>
+          <section class="mind-card">
+            <span>Modo</span>
+            <strong>Reflejos + IA</strong>
+            <small>Local primero, nube cuando haga falta</small>
+          </section>
+          <section class="mind-card">
+            <span>Voz</span>
+            <strong>Navegador</strong>
+            <small>Dictado y respuesta hablada</small>
+          </section>
         </div>
 
         <div class="split">
@@ -92,8 +110,13 @@
             <div id="capabilityList" class="list"></div>
           </section>
           <section class="panel">
-            <div class="panel-head"><h3>Hermes</h3><button id="reloadHermes" class="text-button">Estado</button></div>
-            <pre id="hermesOutput" class="output"></pre>
+            <div class="panel-head"><h3>Mente OpenAI</h3><button id="reloadBrain" class="text-button">Estado</button></div>
+            <form id="openaiForm" class="settings-form">
+              <input id="openaiKey" type="password" autocomplete="off" placeholder="OPENAI_API_KEY">
+              <input id="openaiModel" autocomplete="off" placeholder="Modelo, por defecto gpt-5.1">
+              <button class="text-button" type="submit">Guardar mente</button>
+            </form>
+            <pre id="brainOutput" class="output"></pre>
           </section>
         </div>
       </section>

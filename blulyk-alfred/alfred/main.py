@@ -9,11 +9,11 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from alfred.asset_registry import AssetRegistry
+from alfred.brain import JarvisBrain
 from alfred.config import get_settings
 from alfred.docker_control import docker_summary
-from alfred.hermes import HermesClient
 from alfred.memory import MemoryStore
-from alfred.schemas import AssetCommandRequest, ChatRequest, ToolCallRequest
+from alfred.schemas import AssetCommandRequest, ChatRequest, OpenAISettingsRequest, ToolCallRequest
 from alfred.threats import scan_auth_log
 from alfred.tool_router import ToolRouter
 from alfred.vitals import vitals_payload
@@ -21,13 +21,7 @@ from alfred.vitals import vitals_payload
 settings = get_settings()
 memory = MemoryStore(settings.db_path)
 assets = AssetRegistry(settings.fernet_key)
-hermes = HermesClient(
-    settings.hermes_base_url,
-    settings.hermes_api_base_url,
-    settings.hermes_model,
-    settings.hermes_api_key,
-    settings.hermes_state_db_path,
-)
+brain = JarvisBrain(settings, memory)
 tools = ToolRouter(settings, memory, assets)
 
 
@@ -53,12 +47,18 @@ async def status() -> dict[str, Any]:
         "identity": {
             "name": "JARVIS",
             "full_name": "Just A Rather Very Intelligent System",
-            "mode": "Hermes-cognitive core with local reflex orchestration",
+            "mode": "OpenAI cognitive core with local reflex orchestration",
         },
-        "hermes": await asyncio.to_thread(hermes.status),
+        "brain": await brain.status(),
         "context": context,
         "capabilities": tools.catalog(),
     }
+
+
+@app.post("/settings/openai")
+async def configure_openai(request: OpenAISettingsRequest) -> dict[str, Any]:
+    await brain.save_openai_key(request.api_key, request.model)
+    return {"ok": True, "brain": await brain.status()}
 
 
 @app.get("/")
@@ -164,22 +164,25 @@ async def chat(request: ChatRequest) -> StreamingResponse:
             return
         context = await gather_context()
         try:
-            async for chunk in hermes.stream_chat(request.message, context):
+            async for chunk in brain.stream_chat(request.message, context):
                 yield chunk.encode()
         except Exception:
-            yield "Hermes recibio la orden, pero no devolvio una respuesta final.".encode()
+            yield "La mente OpenAI de JARVIS no devolvio una respuesta final.".encode()
 
     return StreamingResponse(stream(), media_type="text/plain; charset=utf-8")
 
 
 async def maybe_answer_locally(message: str) -> str | None:
     normalized = " ".join(message.lower().split())
+    if normalized in {"hola", "buenas", "jarvis", "hey jarvis"}:
+        context = await gather_context()
+        return format_briefing(context, await brain.status())
     if normalized in {"estado", "status", "sistema", "diagnostico", "diagnóstico"}:
         context = await gather_context()
-        return format_briefing(context, await asyncio.to_thread(hermes.status))
-    if normalized in {"herramientas", "capacidades", "tools"}:
+        return format_briefing(context, await brain.status())
+    if normalized in {"herramientas", "capacidades", "tools", "ayuda", "que puedes hacer?", "qué puedes hacer?", "que puedes hacer", "qué puedes hacer"}:
         names = ", ".join(item["name"] for item in tools.catalog())
-        return f"Capacidades locales listas: {names}."
+        return f"Puedo vigilar Umbrel, leer telemetria, revisar Docker, consultar memoria, controlar assets remotos permitidos, hablar por voz en el navegador y delegar razonamiento profundo a OpenAI cuando configures la API key. Capacidades locales: {names}."
     if normalized in {"contenedores", "docker", "containers"}:
         data = await asyncio.to_thread(docker_summary, settings)
         if not data.get("available"):
@@ -190,7 +193,7 @@ async def maybe_answer_locally(message: str) -> str | None:
     return None
 
 
-def format_briefing(context: dict[str, Any], hermes_state: dict[str, Any]) -> str:
+def format_briefing(context: dict[str, Any], brain_state: dict[str, Any]) -> str:
     vitals_data = context["vitals"]
     docker_data = context["docker"]
     assets_data = context["assets"]
@@ -200,7 +203,7 @@ def format_briefing(context: dict[str, Any], hermes_state: dict[str, Any]) -> st
         docker_text = f"{running}/{len(docker_data.get('containers', []))} contenedores activos"
     return "\n".join(
         [
-            f"JARVIS online. Hermes: {hermes_state['state']}.",
+            f"JARVIS online. Mente: {brain_state['state']} ({brain_state['provider']}).",
             f"Sistema: {vitals_data['status']} | CPU {vitals_data['cpu_percent']:.0f}% | RAM {vitals_data['ram_percent']:.0f}% | Disco {vitals_data['disk_percent']:.0f}%.",
             f"Infraestructura: {docker_text}. Assets conectados: {len(assets_data)}.",
         ]
@@ -243,3 +246,4 @@ def run() -> None:
 
 if __name__ == "__main__":
     run()
+

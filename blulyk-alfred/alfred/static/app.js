@@ -20,9 +20,10 @@ $("reloadDocker").addEventListener("click", loadDocker);
 $("reloadIncidents").addEventListener("click", loadStatus);
 $("reloadAssets").addEventListener("click", loadAssets);
 $("reloadCapabilities").addEventListener("click", loadStatus);
-$("reloadHermes").addEventListener("click", loadStatus);
+$("reloadBrain").addEventListener("click", loadStatus);
 $("loadBridge").addEventListener("click", loadBridgeConfig);
 $("sendAssetCommand").addEventListener("click", sendAssetCommand);
+$("openaiForm").addEventListener("submit", saveOpenAISettings);
 $("repeatVoice").addEventListener("click", () => speak(state.lastAssistantText, true));
 $("stopVoice").addEventListener("click", stopVoice);
 $("listenVoice").addEventListener("click", toggleDictation);
@@ -89,11 +90,13 @@ async function loadStatus() {
   const vitals = context.vitals;
   const threats = context.threats;
   const docker = context.docker;
-  const hermes = data.hermes;
+  const brain = data.brain;
 
-  $("hermesState").textContent = hermes.state === "ready" ? "Hermes listo" : "Hermes limitado";
+  $("brainState").textContent = brain.state === "ready" ? "OpenAI listo" : "Configurar mente";
   $("briefingTitle").textContent = vitals.status === "Nominal" ? "Sistemas nominales." : vitals.status;
-  $("briefingText").textContent = `Hermes: ${hermes.state}. ${vitals.notes.join(" ")}`;
+  $("briefingText").textContent = `Mente: ${brain.state}. ${vitals.notes.join(" ")}`;
+  $("brainName").textContent = `${brain.provider} / ${brain.model}`;
+  $("brainDetail").textContent = brain.detail;
   $("cpuMetric").textContent = percent(vitals.cpu_percent);
   $("ramMetric").textContent = percent(vitals.ram_percent);
   $("diskMetric").textContent = percent(vitals.disk_percent);
@@ -104,7 +107,30 @@ async function loadStatus() {
   renderContainers(docker);
   renderIncidents(context.recent_incidents);
   $("capabilityList").innerHTML = data.capabilities.map((item) => row(item.name, JSON.stringify(item.arguments), "")).join("");
-  $("hermesOutput").textContent = JSON.stringify(hermes, null, 2);
+  $("brainOutput").textContent = JSON.stringify(brain, null, 2);
+}
+
+async function saveOpenAISettings(event) {
+  event.preventDefault();
+  const apiKey = $("openaiKey").value.trim();
+  const model = $("openaiModel").value.trim();
+  if (!apiKey) {
+    $("brainOutput").textContent = "Introduce una OPENAI_API_KEY.";
+    return;
+  }
+  $("brainOutput").textContent = "Guardando mente OpenAI.";
+  try {
+    const data = await getJson("/settings/openai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ api_key: apiKey, model: model || null })
+    });
+    $("openaiKey").value = "";
+    $("brainOutput").textContent = JSON.stringify(data.brain, null, 2);
+    await loadStatus();
+  } catch (error) {
+    $("brainOutput").textContent = error.message;
+  }
 }
 
 async function loadDocker() {
@@ -229,7 +255,6 @@ function cleanAssistantText(text) {
 function isTerminalNoise(line) {
   const lower = line.toLowerCase();
   if ([">", "$", "❯"].includes(line)) return true;
-  if (lower.includes("$ hermes")) return true;
   if (/^[-_|+=~: .[\]()0-9]{12,}$/.test(line)) return true;
   return ["gpt-", "msg=interrupt", "/queue", "/bg", "/steer", "ctrl+c", "tokens", "private telemetry", "current local telemetry"].some((fragment) => lower.includes(fragment));
 }

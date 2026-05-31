@@ -61,6 +61,14 @@ class MemoryStore:
             (key, json.dumps(value), self._now()),
         )
 
+    async def get_preference(self, key: str) -> Any | None:
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute("SELECT value FROM preferences WHERE key = ?", (key,))
+            row = await cursor.fetchone()
+        if row is None:
+            return None
+        return json.loads(row[0])
+
     async def recent_incidents(self, limit: int = 10) -> list[dict[str, Any]]:
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row

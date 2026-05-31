@@ -1,22 +1,22 @@
 manifestVersion: 1
 id: blulyk-alfred
 name: JARVIS
-tagline: Hermes-powered home intelligence for Umbrel
+tagline: OpenAI-powered home intelligence for Umbrel
 category: ai
-version: "1.0.1"
+version: "1.1.0"
 port: 8080
 path: ""
 icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-alfred/icon.svg
 description: >-
-  JARVIS is a local-first intelligence console for umbrelOS with Hermes Agent
-  as its cognitive core. It combines fast local reflexes for system state,
-  Docker visibility, memory and remote asset control with deeper Hermes
-  reasoning whenever the Hermes provider is available.
+  JARVIS is a local-first intelligence console for umbrelOS with OpenAI as its
+  cognitive core. It combines fast local reflexes for system state, Docker
+  visibility, memory and remote asset control with deeper OpenAI reasoning once
+  you configure an API key.
 
 
   The interface is built as an operational home cockpit: live host telemetry,
-  Hermes state, container registry inspection, connected asset status, voice
-  input, spoken replies, and command routing are available from one
+  OpenAI mind state, container registry inspection, connected asset status,
+  voice input, spoken replies, and command routing are available from one
   Umbrel-protected app.
 
 
@@ -26,14 +26,12 @@ description: >-
   commands.
 developer: Blulyk
 website: https://github.com/Blulyk/umbrel-app-store
-dependencies:
-  - blulyk-hermes-agent
+dependencies: []
 repo: https://github.com/Blulyk/umbrel-app-store
 support: https://github.com/Blulyk/umbrel-app-store/issues
 gallery: []
 releaseNotes: >-
-  Improves Hermes API calls by using final-response mode so provider failures are
-  reported cleanly instead of closing an empty stream; keeps the JARVIS cockpit,
-  local reflex commands, voice input and spoken replies.
+  Adds a direct OpenAI Responses API brain, in-app API key setup, fast local
+  reflex commands, and an upgraded JARVIS cockpit for desktop and mobile use.
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store

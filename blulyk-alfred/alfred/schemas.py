@@ -15,3 +15,8 @@ class AssetCommandRequest(BaseModel):
 class ToolCallRequest(BaseModel):
     tool: str
     arguments: dict[str, Any] = Field(default_factory=dict)
+
+
+class OpenAISettingsRequest(BaseModel):
+    api_key: str = Field(min_length=20, max_length=400)
+    model: str | None = Field(default=None, max_length=80)

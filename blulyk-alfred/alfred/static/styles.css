@@ -217,6 +217,33 @@ input:focus, select:focus {
   margin: 18px 0;
 }
 
+.mind-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 18px 0;
+}
+
+.mind-card {
+  min-height: 112px;
+  display: grid;
+  align-content: space-between;
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(135deg, rgba(98, 215, 232, .12), transparent),
+    rgba(16, 20, 25, .88);
+  padding: 16px;
+}
+
+.mind-card span, .mind-card small {
+  color: var(--muted);
+}
+
+.mind-card strong {
+  font-size: 20px;
+  overflow-wrap: anywhere;
+}
+
 .metric, .panel, .terminal {
   border: 1px solid var(--line);
   background: rgba(16, 20, 25, .88);
@@ -355,6 +382,13 @@ input:focus, select:focus {
   gap: 10px;
 }
 
+.settings-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr) auto;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
 .output {
   min-height: 120px;
   overflow: auto;
@@ -377,7 +411,7 @@ input:focus, select:focus {
     grid-template-rows: 1fr;
   }
   .workspace { padding: 18px; }
-  .core-readout, .split, .metrics-grid {
+  .core-readout, .split, .metrics-grid, .mind-strip {
     grid-template-columns: 1fr;
   }
   .scan-field { height: 130px; }
@@ -394,6 +428,6 @@ input:focus, select:focus {
     padding-bottom: 16px;
   }
   .top-actions { justify-content: space-between; }
-  .control-grid { grid-template-columns: 1fr; }
+  .control-grid, .settings-form { grid-template-columns: 1fr; }
   .metric strong { font-size: 26px; }
 }
