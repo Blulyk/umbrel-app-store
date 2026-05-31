@@ -7,7 +7,7 @@ services:
       APP_PORT: 8080
 
   web:
-    image: ghcr.io/blulyk/alfred-umbrel:0.1.11
+    image: ghcr.io/blulyk/alfred-umbrel:0.1.12
     container_name: blulyk-alfred_web_1
     restart: on-failure
     stop_grace_period: 1m

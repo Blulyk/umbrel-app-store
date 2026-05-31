@@ -6,6 +6,7 @@ import re
 import sqlite3
 import time
 from collections.abc import AsyncIterator
+from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
@@ -26,6 +27,7 @@ CURSOR_POSITION_RESPONSE = "\x1b[32;1R"
 HERMES_LIMIT_MESSAGE = "Hermes no puede responder ahora: limite de uso del proveedor alcanzado."
 HERMES_EMPTY_MESSAGE = "Hermes recibio la orden, pero no devolvio una respuesta final."
 TERMINAL_MODE = "alfred"
+_RECENT_FAILURE_WINDOW = timedelta(minutes=30)
 
 
 class HermesClient:
@@ -44,6 +46,11 @@ class HermesClient:
     async def stream_chat(
         self, user_message: str, tool_context: dict[str, object]
     ) -> AsyncIterator[str]:
+        status_message = await asyncio.to_thread(self._current_hermes_status_message)
+        if status_message:
+            yield status_message
+            return
+
         try:
             emitted = False
             async for chunk in self._stream_openai_chat(user_message, tool_context):
@@ -307,11 +314,49 @@ class HermesClient:
             return HERMES_EMPTY_MESSAGE
         return ""
 
+    def _current_hermes_status_message(self) -> str:
+        log_path = self._agent_log_path()
+        if not log_path:
+            return ""
+        try:
+            with log_path.open("rb") as handle:
+                handle.seek(max(log_path.stat().st_size - 64_000, 0))
+                text = handle.read().decode(errors="replace")
+        except OSError:
+            return ""
+
+        last_failure: datetime | None = None
+        last_success: datetime | None = None
+        for line in text.splitlines():
+            timestamp = _line_timestamp(line)
+            lower = line.lower()
+            if "api call #" in lower or "turn ended: reason=text_response" in lower:
+                last_success = timestamp or last_success
+            if (
+                "credential pool: no available entries" in lower
+                or "usage_limit_reached" in lower
+                or "http 429" in lower
+                or "usage limit has been reached" in lower
+            ):
+                last_failure = timestamp or last_failure
+
+        if last_failure and (not last_success or last_failure >= last_success):
+            if datetime.now() - last_failure < _RECENT_FAILURE_WINDOW:
+                return HERMES_LIMIT_MESSAGE
+        return ""
+
 
 def _clean_terminal_text(value: str) -> str:
     clean = ANSI_RE.sub("", value).replace("\r", "")
     clean = clean.replace("\u2500", "-").replace("\u2502", "|")
     return clean
+
+
+def _line_timestamp(line: str) -> datetime | None:
+    try:
+        return datetime.strptime(line[:23], "%Y-%m-%d %H:%M:%S,%f")
+    except ValueError:
+        return None
 
 
 def _extract_answer(raw: str, prompt: str) -> str:
