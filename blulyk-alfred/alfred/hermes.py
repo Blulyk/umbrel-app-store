@@ -210,10 +210,9 @@ class HermesClient:
                 return result["content"]
             user_message_id = result["user_message_id"]
             session_id = result["session_id"]
-            if user_message_id:
-                failure = await asyncio.to_thread(self._hermes_failure_message, log_offset)
-                if failure:
-                    return failure
+            failure = await asyncio.to_thread(self._hermes_failure_message, log_offset)
+            if failure:
+                return failure
             await asyncio.sleep(0.5)
         return ""
 
@@ -301,6 +300,8 @@ class HermesClient:
 
         lower = text.lower()
         if "usage_limit_reached" in lower or "http 429" in lower or "usage limit has been reached" in lower:
+            return HERMES_LIMIT_MESSAGE
+        if "credential pool: no available entries" in lower:
             return HERMES_LIMIT_MESSAGE
         if "api call failed after" in lower:
             return HERMES_EMPTY_MESSAGE
