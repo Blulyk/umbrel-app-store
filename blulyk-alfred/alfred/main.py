@@ -23,6 +23,7 @@ memory = MemoryStore(settings.db_path)
 assets = AssetRegistry(settings.fernet_key)
 hermes = HermesClient(
     settings.hermes_base_url,
+    settings.hermes_api_base_url,
     settings.hermes_model,
     settings.hermes_api_key,
     settings.hermes_state_db_path,
@@ -36,13 +37,28 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     yield
 
 
-app = FastAPI(title="ALFRED Orchestrator", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="JARVIS Orchestrator", version="1.0.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="alfred/static"), name="static")
 
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    return {"status": "operational", "assessment": "Nominal. Do try to keep it that way."}
+    return {"status": "operational", "assessment": "JARVIS core online."}
+
+
+@app.get("/status")
+async def status() -> dict[str, Any]:
+    context = await gather_context()
+    return {
+        "identity": {
+            "name": "JARVIS",
+            "full_name": "Just A Rather Very Intelligent System",
+            "mode": "Hermes-cognitive core with local reflex orchestration",
+        },
+        "hermes": await asyncio.to_thread(hermes.status),
+        "context": context,
+        "capabilities": tools.catalog(),
+    }
 
 
 @app.get("/")
@@ -138,6 +154,10 @@ async def asset_socket(websocket: WebSocket) -> None:
 @app.post("/chat")
 async def chat(request: ChatRequest) -> StreamingResponse:
     async def stream() -> AsyncIterator[bytes]:
+        local_reply = await maybe_answer_locally(request.message)
+        if local_reply:
+            yield local_reply.encode()
+            return
         tool_result = await maybe_execute_json_tool(request.message)
         if tool_result is not None:
             yield json.dumps(tool_result, ensure_ascii=False, indent=2).encode()
@@ -150,6 +170,41 @@ async def chat(request: ChatRequest) -> StreamingResponse:
             yield "Hermes recibio la orden, pero no devolvio una respuesta final.".encode()
 
     return StreamingResponse(stream(), media_type="text/plain; charset=utf-8")
+
+
+async def maybe_answer_locally(message: str) -> str | None:
+    normalized = " ".join(message.lower().split())
+    if normalized in {"estado", "status", "sistema", "diagnostico", "diagnóstico"}:
+        context = await gather_context()
+        return format_briefing(context, await asyncio.to_thread(hermes.status))
+    if normalized in {"herramientas", "capacidades", "tools"}:
+        names = ", ".join(item["name"] for item in tools.catalog())
+        return f"Capacidades locales listas: {names}."
+    if normalized in {"contenedores", "docker", "containers"}:
+        data = await asyncio.to_thread(docker_summary, settings)
+        if not data.get("available"):
+            return f"Docker no esta disponible: {data.get('error', 'sin detalle')}."
+        running = sum(1 for item in data.get("containers", []) if item.get("status") == "running")
+        total = len(data.get("containers", []))
+        return f"Docker operativo: {running}/{total} contenedores en ejecucion."
+    return None
+
+
+def format_briefing(context: dict[str, Any], hermes_state: dict[str, Any]) -> str:
+    vitals_data = context["vitals"]
+    docker_data = context["docker"]
+    assets_data = context["assets"]
+    docker_text = "Docker no disponible"
+    if docker_data.get("available"):
+        running = sum(1 for item in docker_data.get("containers", []) if item.get("status") == "running")
+        docker_text = f"{running}/{len(docker_data.get('containers', []))} contenedores activos"
+    return "\n".join(
+        [
+            f"JARVIS online. Hermes: {hermes_state['state']}.",
+            f"Sistema: {vitals_data['status']} | CPU {vitals_data['cpu_percent']:.0f}% | RAM {vitals_data['ram_percent']:.0f}% | Disco {vitals_data['disk_percent']:.0f}%.",
+            f"Infraestructura: {docker_text}. Assets conectados: {len(assets_data)}.",
+        ]
+    )
 
 
 async def maybe_execute_json_tool(message: str) -> dict[str, Any] | None:

@@ -33,11 +33,13 @@ class HermesClient:
     def __init__(
         self,
         base_url: str,
+        api_base_url: str,
         model: str,
         api_key: str | None = None,
         state_db_path: str | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
+        self.api_base_url = api_base_url.rstrip("/")
         self.model = model
         self.api_key = api_key
         self.state_db_path = state_db_path
@@ -86,7 +88,7 @@ class HermesClient:
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
-        endpoint = self.base_url
+        endpoint = self.api_base_url
         if not endpoint.endswith("/v1"):
             endpoint = f"{endpoint}/v1"
 
@@ -104,6 +106,12 @@ class HermesClient:
                     content = delta.get("content")
                     if content:
                         yield content
+
+    def status(self) -> dict[str, object]:
+        failure = self._current_hermes_status_message()
+        if failure:
+            return {"state": "limited", "detail": failure, "api": self.api_base_url}
+        return {"state": "ready", "detail": "Hermes API configured.", "api": self.api_base_url}
 
     async def _stream_terminal_chat(self, user_message: str) -> AsyncIterator[str]:
         safe_message = " ".join(user_message.split())

@@ -4,7 +4,7 @@ name: Hermes Agent
 tagline: Autonomous AI agent with memory, skills and messaging
 icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-hermes-agent/icon.png
 category: ai
-version: "0.15.1"
+version: "0.15.2"
 port: 9119
 description: >-
   Hermes Agent is the self-improving AI agent from Nous Research. It runs on
@@ -34,6 +34,6 @@ defaultPassword: ""
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store
 releaseNotes: >-
-  v0.15.1 fixes Hermes command resolution in persistent sessions by launching
-  the official binary through its absolute path, preserving chat resume,
-  Control TUI access, and persistent web terminal reconnects.
+  v0.15.2 enables the internal JARVIS bridge key for Hermes Agent's
+  OpenAI-compatible API server, allowing the JARVIS Umbrel app to use Hermes as
+  its cognitive core without scraping terminal output.

@@ -1,6 +1,7 @@
 const state = {
-  transcript: [],
-  lastAssistantText: ""
+  lastAssistantText: "",
+  recognition: null,
+  listening: false
 };
 
 const $ = (id) => document.getElementById(id);
@@ -16,22 +17,32 @@ document.querySelectorAll(".rail-button").forEach((button) => {
 
 $("refreshAll").addEventListener("click", refreshAll);
 $("reloadDocker").addEventListener("click", loadDocker);
-$("reloadIncidents").addEventListener("click", loadIncidents);
+$("reloadIncidents").addEventListener("click", loadStatus);
 $("reloadAssets").addEventListener("click", loadAssets);
-$("memoryRefresh").addEventListener("click", loadIncidents);
-$("clearConsole").addEventListener("click", () => {
-  stopVoice();
-  state.transcript = [];
-  state.lastAssistantText = "";
-  renderTranscript();
-});
+$("reloadCapabilities").addEventListener("click", loadStatus);
+$("reloadHermes").addEventListener("click", loadStatus);
+$("loadBridge").addEventListener("click", loadBridgeConfig);
+$("sendAssetCommand").addEventListener("click", sendAssetCommand);
 $("repeatVoice").addEventListener("click", () => speak(state.lastAssistantText, true));
 $("stopVoice").addEventListener("click", stopVoice);
+$("listenVoice").addEventListener("click", toggleDictation);
+$("clearConsole").addEventListener("click", () => {
+  stopVoice();
+  $("transcript").innerHTML = "";
+  state.lastAssistantText = "";
+});
 $("voiceToggle").addEventListener("change", () => {
   if (!$("voiceToggle").checked) stopVoice();
 });
-$("loadBridge").addEventListener("click", loadBridgeConfig);
-$("sendAssetCommand").addEventListener("click", sendAssetCommand);
+
+$("quickForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const value = $("quickInput").value.trim();
+  if (!value) return;
+  $("quickInput").value = "";
+  await sendChat(value);
+  document.querySelector('[data-section="console"]').click();
+});
 
 $("chatForm").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -39,8 +50,12 @@ $("chatForm").addEventListener("submit", async (event) => {
   const message = input.value.trim();
   if (!message) return;
   input.value = "";
+  await sendChat(message);
+});
+
+async function sendChat(message) {
   appendMessage("user", message);
-  const assistant = appendMessage("assistant", "Assessing.");
+  const assistant = appendMessage("assistant", "Pensando.");
   try {
     const response = await fetch("/chat", {
       method: "POST",
@@ -54,78 +69,82 @@ $("chatForm").addEventListener("submit", async (event) => {
       const { done, value } = await reader.read();
       if (done) break;
       assistant.textContent += decoder.decode(value, { stream: true });
-      $("transcript").scrollTop = $("transcript").scrollHeight;
+      scrollTranscript();
     }
     state.lastAssistantText = cleanAssistantText(assistant.textContent);
-    assistant.textContent = state.lastAssistantText;
-    if (!state.lastAssistantText) {
-      assistant.remove();
-      return;
-    }
+    assistant.textContent = state.lastAssistantText || "Sin respuesta.";
     if ($("voiceToggle").checked) speak(state.lastAssistantText, false);
   } catch (error) {
-    assistant.textContent = `Console fault: ${error.message}`;
+    assistant.textContent = `Fallo de enlace: ${error.message}`;
   }
-});
+}
 
 async function refreshAll() {
-  await Promise.allSettled([loadVitals(), loadThreats(), loadDocker(), loadIncidents(), loadAssets()]);
+  await Promise.allSettled([loadStatus(), loadAssets()]);
 }
 
-async function loadVitals() {
-  const data = await getJson("/vitals");
-  $("systemState").textContent = data.status;
-  $("cpuMetric").textContent = percent(data.cpu_percent);
-  $("ramMetric").textContent = percent(data.ram_percent);
-  $("diskMetric").textContent = percent(data.disk_percent);
-  $("tempMetric").textContent = data.cpu_temperature_c === null ? "Temperature unavailable" : `${data.cpu_temperature_c.toFixed(1)}C`;
-  $("briefingTitle").textContent = data.status === "Nominal" ? "Systems nominal." : data.status;
-  $("briefingText").textContent = data.notes.join(" ");
-}
+async function loadStatus() {
+  const data = await getJson("/status");
+  const context = data.context;
+  const vitals = context.vitals;
+  const threats = context.threats;
+  const docker = context.docker;
+  const hermes = data.hermes;
 
-async function loadThreats() {
-  const data = await getJson("/threats");
-  $("threatMetric").textContent = data.status;
-  $("threatSummary").textContent = data.anomalies.length ? `${data.anomalies.length} perimeter events` : data.summary;
+  $("hermesState").textContent = hermes.state === "ready" ? "Hermes listo" : "Hermes limitado";
+  $("briefingTitle").textContent = vitals.status === "Nominal" ? "Sistemas nominales." : vitals.status;
+  $("briefingText").textContent = `Hermes: ${hermes.state}. ${vitals.notes.join(" ")}`;
+  $("cpuMetric").textContent = percent(vitals.cpu_percent);
+  $("ramMetric").textContent = percent(vitals.ram_percent);
+  $("diskMetric").textContent = percent(vitals.disk_percent);
+  $("tempMetric").textContent = vitals.cpu_temperature_c === null ? "Temperatura no disponible" : `${vitals.cpu_temperature_c.toFixed(1)}C`;
+  $("threatMetric").textContent = threats.status;
+  $("threatSummary").textContent = threats.anomalies.length ? `${threats.anomalies.length} eventos` : threats.summary;
+
+  renderContainers(docker);
+  renderIncidents(context.recent_incidents);
+  $("capabilityList").innerHTML = data.capabilities.map((item) => row(item.name, JSON.stringify(item.arguments), "")).join("");
+  $("hermesOutput").textContent = JSON.stringify(hermes, null, 2);
 }
 
 async function loadDocker() {
   const data = await getJson("/docker");
-  const target = $("containerList");
-  if (!data.available) {
-    target.innerHTML = row("Docker unavailable", data.error || "Socket not mounted.", "warning");
-    return;
-  }
-  target.innerHTML = data.containers.slice(0, 8).map((item) => {
-    const tone = item.status === "running" ? "" : "warning";
-    return row(item.name, `${item.status} - ${item.image}`, tone);
-  }).join("") || row("No containers found", "The registry is oddly quiet.", "warning");
+  renderContainers(data);
 }
 
-async function loadIncidents() {
-  const data = await getJson("/memory/incidents");
-  const html = data.map((item) => row(item.summary, `${item.category} - ${item.created_at}`, item.severity === "warning" ? "warning" : "")).join("");
-  $("incidentList").innerHTML = html || row("No incidents recorded", "A rare luxury.", "");
-  $("memoryList").innerHTML = html || row("No incidents recorded", "The ledger is clean.", "");
+function renderContainers(data) {
+  const target = $("containerList");
+  if (!data.available) {
+    target.innerHTML = row("Docker no disponible", data.error || "Socket no montado", "warning");
+    return;
+  }
+  target.innerHTML = data.containers.slice(0, 10).map((item) => {
+    const tone = item.status === "running" ? "" : "warning";
+    return row(item.name, `${item.status} - ${item.image}`, tone);
+  }).join("") || row("Sin contenedores", "Registro vacio", "warning");
+}
+
+function renderIncidents(items) {
+  const html = items.map((item) => row(item.summary, `${item.category} - ${item.created_at}`, item.severity === "warning" ? "warning" : "")).join("");
+  $("incidentList").innerHTML = html || row("Sin incidentes", "Memoria limpia", "");
 }
 
 async function loadAssets() {
   const data = await getJson("/assets");
-  $("assetList").innerHTML = data.map((item) => row(item.asset_id, `Connected ${item.connected_at}`, "")).join("") || row("No assets connected", "Start asset_bridge.py on the remote PC.", "warning");
+  $("assetList").innerHTML = data.map((item) => row(item.asset_id, `Conectado ${item.connected_at}`, "")).join("") || row("Sin assets", "Arranca el puente remoto", "warning");
 }
 
 async function loadBridgeConfig() {
   const data = await getJson("/asset-bridge/config");
   const origin = window.location.origin.replace(/^http/, "ws");
-  const command = `python asset_bridge.py --server ${origin}${data.websocket_path} --asset-id ${data.asset_id} --key "${data.bridge_key}"`;
-  $("bridgeCommand").textContent = command;
+  $("bridgeCommand").textContent = `python asset_bridge.py --server ${origin}${data.websocket_path} --asset-id ${data.asset_id} --key "${data.bridge_key}"`;
 }
 
 async function sendAssetCommand() {
   const assetId = $("assetId").value.trim();
   const action = $("assetAction").value;
   const payload = action === "launch" ? { app: $("assetApp").value.trim() } : {};
-  $("assetOutput").textContent = "Dispatching.";
+  $("assetOutput").textContent = "Enviando.";
   try {
     const data = await getJson(`/assets/${encodeURIComponent(assetId)}/command`, {
       method: "POST",
@@ -139,17 +158,48 @@ async function sendAssetCommand() {
   }
 }
 
+function toggleDictation() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    appendMessage("assistant", "Dictado no disponible en este navegador.");
+    return;
+  }
+  if (state.listening && state.recognition) {
+    state.recognition.stop();
+    return;
+  }
+  const recognition = new SpeechRecognition();
+  recognition.lang = "es-ES";
+  recognition.interimResults = false;
+  recognition.continuous = false;
+  recognition.onstart = () => {
+    state.listening = true;
+    $("listenVoice").classList.add("active-recording");
+  };
+  recognition.onend = () => {
+    state.listening = false;
+    $("listenVoice").classList.remove("active-recording");
+  };
+  recognition.onresult = (event) => {
+    const text = event.results[0][0].transcript;
+    $("promptInput").value = text;
+    sendChat(text);
+  };
+  state.recognition = recognition;
+  recognition.start();
+}
+
 function appendMessage(role, content) {
   const node = document.createElement("div");
   node.className = `message ${role}`;
   node.textContent = content;
   $("transcript").appendChild(node);
-  $("transcript").scrollTop = $("transcript").scrollHeight;
+  scrollTranscript();
   return node;
 }
 
-function renderTranscript() {
-  $("transcript").innerHTML = "";
+function scrollTranscript() {
+  $("transcript").scrollTop = $("transcript").scrollHeight;
 }
 
 function speak(text, force) {
@@ -159,8 +209,8 @@ function speak(text, force) {
   stopVoice();
   const utterance = new SpeechSynthesisUtterance(cleanText);
   utterance.lang = /[áéíóúñ¿¡]/i.test(cleanText) ? "es-ES" : "en-GB";
-  utterance.rate = 0.98;
-  utterance.pitch = 0.88;
+  utterance.rate = 1;
+  utterance.pitch = 0.92;
   const voices = window.speechSynthesis.getVoices();
   const preferred = voices.find((voice) => voice.lang === utterance.lang) || voices.find((voice) => voice.lang.startsWith(utterance.lang.slice(0, 2)));
   if (preferred) utterance.voice = preferred;
@@ -169,15 +219,11 @@ function speak(text, force) {
 
 function stopVoice() {
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+  if (state.recognition && state.listening) state.recognition.stop();
 }
 
 function cleanAssistantText(text) {
-  return String(text || "")
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line && !isTerminalNoise(line))
-    .join("\n")
-    .trim();
+  return String(text || "").split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !isTerminalNoise(line)).join("\n").trim();
 }
 
 function isTerminalNoise(line) {
@@ -185,28 +231,12 @@ function isTerminalNoise(line) {
   if ([">", "$", "❯"].includes(line)) return true;
   if (lower.includes("$ hermes")) return true;
   if (/^[-_|+=~: .[\]()0-9]{12,}$/.test(line)) return true;
-  return [
-    "gpt-",
-    "msg=interrupt",
-    "/queue",
-    "/bg",
-    "/steer",
-    "ctrl+c",
-    "reflecting",
-    "tokens",
-    "alfred context follows",
-    "private telemetry",
-    "current local telemetry",
-    "context:",
-    "user request:"
-  ].some((fragment) => lower.includes(fragment));
+  return ["gpt-", "msg=interrupt", "/queue", "/bg", "/steer", "ctrl+c", "tokens", "private telemetry", "current local telemetry"].some((fragment) => lower.includes(fragment));
 }
 
 async function getJson(url, options) {
   const response = await fetch(url, options);
-  if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}`);
-  }
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
   return response.json();
 }
 
@@ -215,17 +245,11 @@ function percent(value) {
 }
 
 function row(title, detail, tone) {
-  const escapedTitle = escapeHtml(title);
-  const escapedDetail = escapeHtml(detail);
-  return `<div class="row ${tone || ""}"><div><strong>${escapedTitle}</strong><br><small>${escapedDetail}</small></div><span>*</span></div>`;
+  return `<div class="row ${tone || ""}"><div><strong>${escapeHtml(title)}</strong><br><small>${escapeHtml(detail)}</small></div><span></span></div>`;
 }
 
 function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
 refreshAll();

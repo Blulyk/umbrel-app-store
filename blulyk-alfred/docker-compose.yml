@@ -7,7 +7,7 @@ services:
       APP_PORT: 8080
 
   web:
-    image: ghcr.io/blulyk/alfred-umbrel:0.1.13
+    image: ghcr.io/blulyk/alfred-umbrel:1.0.0
     container_name: blulyk-alfred_web_1
     restart: on-failure
     stop_grace_period: 1m
@@ -24,7 +24,9 @@ services:
       ALFRED_DB: "/data/alfred.sqlite3"
       ALFRED_REDIS_URL: "redis://blulyk-alfred_redis_1:6379/0"
       ALFRED_HERMES_BASE_URL: "http://blulyk-hermes-agent_web_1:9119"
-      ALFRED_HERMES_MODEL: "hermes-local"
+      ALFRED_HERMES_API_BASE_URL: "http://blulyk-hermes-agent_web_1:8642/v1"
+      ALFRED_HERMES_API_KEY: "jarvis-hermes-bridge"
+      ALFRED_HERMES_MODEL: "hermes-agent"
       ALFRED_DOCKER_CONTROL: "false"
       ALFRED_AUTH_LOG: "/host/var/log/auth.log"
       ALFRED_BRIDGE_SECRET: "${APP_SEED}"

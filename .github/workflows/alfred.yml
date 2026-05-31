@@ -1,4 +1,4 @@
-name: Build ALFRED Umbrel
+name: Build JARVIS Umbrel
 
 on:
   push:
@@ -38,5 +38,5 @@ jobs:
           platforms: linux/amd64
           tags: |
             ghcr.io/blulyk/alfred-umbrel:latest
-            ghcr.io/blulyk/alfred-umbrel:0.1.13
+            ghcr.io/blulyk/alfred-umbrel:1.0.0
             ghcr.io/blulyk/alfred-umbrel:${{ github.sha }}

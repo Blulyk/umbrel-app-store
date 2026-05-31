@@ -1,81 +1,65 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ALFRED</title>
+  <title>JARVIS</title>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-  <div class="shell">
-    <aside class="rail" aria-label="Primary">
-      <div class="mark" aria-label="ALFRED">A</div>
-      <button class="rail-button active" data-section="overview" title="Overview" aria-label="Overview">⌂</button>
-      <button class="rail-button" data-section="console" title="Console" aria-label="Console">⌁</button>
-      <button class="rail-button" data-section="assets" title="Assets" aria-label="Assets">▣</button>
-      <button class="rail-button" data-section="memory" title="Memory" aria-label="Memory">◫</button>
+  <div class="app-shell">
+    <aside class="rail" aria-label="Navegacion">
+      <div class="brand-mark">J</div>
+      <button class="rail-button active" data-section="bridge" title="Nucleo" aria-label="Nucleo">⌂</button>
+      <button class="rail-button" data-section="console" title="Consola" aria-label="Consola">⌁</button>
+      <button class="rail-button" data-section="systems" title="Sistemas" aria-label="Sistemas">◫</button>
+      <button class="rail-button" data-section="assets" title="Assets" aria-label="Assets">◇</button>
     </aside>
 
     <main class="workspace">
       <header class="topbar">
         <div>
-          <p class="eyebrow">Autonomous Local Functional Responsive Electronic Database</p>
-          <h1>ALFRED</h1>
+          <p class="eyebrow">Just A Rather Very Intelligent System</p>
+          <h1>JARVIS</h1>
         </div>
-        <div class="status-strip">
-          <span id="systemState" class="status-pill">Assessing</span>
-          <button id="refreshAll" class="icon-button" title="Refresh telemetry" aria-label="Refresh telemetry">↻</button>
+        <div class="top-actions">
+          <span id="hermesState" class="state-pill">Inicializando</span>
+          <button id="refreshAll" class="icon-button" title="Actualizar" aria-label="Actualizar">↻</button>
         </div>
       </header>
 
-      <section id="overview" class="view active-view">
-        <div class="hero-band">
-          <div>
-            <p class="eyebrow">Umbrel Operations</p>
-            <h2 id="briefingTitle">Awaiting telemetry.</h2>
-            <p id="briefingText">Local host, perimeter, containers and remote assets will report here.</p>
+      <section id="bridge" class="view active-view">
+        <div class="command-deck">
+          <div class="core-readout">
+            <div class="scan-field" aria-hidden="true">
+              <span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <div>
+              <p class="eyebrow">Cortex</p>
+              <h2 id="briefingTitle">Esperando telemetria.</h2>
+              <p id="briefingText">El nucleo local esta preparando el estado operativo.</p>
+            </div>
           </div>
-          <div class="signal" aria-hidden="true">
-            <span></span><span></span><span></span><span></span>
-          </div>
+          <form id="quickForm" class="quick-command">
+            <input id="quickInput" autocomplete="off" placeholder="Orden para JARVIS">
+            <button class="send-button" title="Enviar" aria-label="Enviar">↵</button>
+          </form>
         </div>
 
         <div class="metrics-grid">
-          <article class="metric">
-            <span>CPU</span>
-            <strong id="cpuMetric">--</strong>
-            <small id="tempMetric">Temperature unavailable</small>
-          </article>
-          <article class="metric">
-            <span>Memory</span>
-            <strong id="ramMetric">--</strong>
-            <small>RAM pressure</small>
-          </article>
-          <article class="metric">
-            <span>Storage</span>
-            <strong id="diskMetric">--</strong>
-            <small>Root volume</small>
-          </article>
-          <article class="metric">
-            <span>Perimeter</span>
-            <strong id="threatMetric">--</strong>
-            <small id="threatSummary">No scan yet</small>
-          </article>
+          <article class="metric"><span>CPU</span><strong id="cpuMetric">--</strong><small id="tempMetric">Temperatura --</small></article>
+          <article class="metric"><span>Memoria</span><strong id="ramMetric">--</strong><small>Presion RAM</small></article>
+          <article class="metric"><span>Disco</span><strong id="diskMetric">--</strong><small>Volumen raiz</small></article>
+          <article class="metric"><span>Perimetro</span><strong id="threatMetric">--</strong><small id="threatSummary">Sin escaneo</small></article>
         </div>
 
         <div class="split">
           <section class="panel">
-            <div class="panel-head">
-              <h3>Container Registry</h3>
-              <button class="text-button" id="reloadDocker">Inspect</button>
-            </div>
+            <div class="panel-head"><h3>Procesos Umbrel</h3><button id="reloadDocker" class="text-button">Inspeccionar</button></div>
             <div id="containerList" class="list"></div>
           </section>
           <section class="panel">
-            <div class="panel-head">
-              <h3>Incident Memory</h3>
-              <button class="text-button" id="reloadIncidents">Review</button>
-            </div>
+            <div class="panel-head"><h3>Memoria Operativa</h3><button id="reloadIncidents" class="text-button">Revisar</button></div>
             <div id="incidentList" class="list"></div>
           </section>
         </div>
@@ -84,71 +68,62 @@
       <section id="console" class="view">
         <section class="terminal">
           <div class="terminal-head">
-            <h2>Command Console</h2>
+            <h2>Conversacion</h2>
             <div class="console-actions">
-              <label class="voice-toggle">
-                <input id="voiceToggle" type="checkbox">
-                <span>Voice</span>
-              </label>
-              <button id="repeatVoice" class="icon-button" title="Repeat last response" aria-label="Repeat last response">V</button>
-              <button id="stopVoice" class="icon-button stop-button" title="Stop voice" aria-label="Stop voice">S</button>
-              <button id="clearConsole" class="icon-button" title="Clear console" aria-label="Clear console">X</button>
+              <label class="voice-toggle"><input id="voiceToggle" type="checkbox"><span>Voz</span></label>
+              <button id="listenVoice" class="icon-button" title="Dictar" aria-label="Dictar">●</button>
+              <button id="repeatVoice" class="icon-button" title="Repetir" aria-label="Repetir">V</button>
+              <button id="stopVoice" class="icon-button stop-button" title="Parar voz" aria-label="Parar voz">S</button>
+              <button id="clearConsole" class="icon-button" title="Limpiar" aria-label="Limpiar">X</button>
             </div>
           </div>
           <div id="transcript" class="transcript" aria-live="polite"></div>
           <form id="chatForm" class="composer">
-            <input id="promptInput" autocomplete="off" placeholder="Request analysis or send a JSON tool call">
-            <button type="submit" class="send-button" title="Execute" aria-label="Execute">↵</button>
+            <input id="promptInput" autocomplete="off" placeholder="Pregunta, orden o llamada JSON">
+            <button type="submit" class="send-button" title="Ejecutar" aria-label="Ejecutar">↵</button>
           </form>
         </section>
+      </section>
+
+      <section id="systems" class="view">
+        <div class="split">
+          <section class="panel">
+            <div class="panel-head"><h3>Capacidades</h3><button id="reloadCapabilities" class="text-button">Actualizar</button></div>
+            <div id="capabilityList" class="list"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><h3>Hermes</h3><button id="reloadHermes" class="text-button">Estado</button></div>
+            <pre id="hermesOutput" class="output"></pre>
+          </section>
+        </div>
       </section>
 
       <section id="assets" class="view">
         <div class="split">
           <section class="panel">
-            <div class="panel-head">
-              <h3>Deployable Assets</h3>
-              <button class="text-button" id="reloadAssets">Scan</button>
-            </div>
+            <div class="panel-head"><h3>Assets Conectados</h3><button id="reloadAssets" class="text-button">Escanear</button></div>
             <div id="assetList" class="list"></div>
           </section>
           <section class="panel">
-            <div class="panel-head">
-              <h3>Remote Command</h3>
-            </div>
+            <div class="panel-head"><h3>Accion Remota</h3></div>
             <div class="control-grid">
               <input id="assetId" value="main-pc" aria-label="Asset id">
               <select id="assetAction" aria-label="Asset action">
                 <option value="ping">Ping</option>
-                <option value="process_audit">Process audit</option>
-                <option value="launch">Launch app</option>
-                <option value="lock">Lock</option>
-                <option value="sleep">Sleep</option>
+                <option value="process_audit">Auditar procesos</option>
+                <option value="launch">Abrir app</option>
+                <option value="lock">Bloquear</option>
+                <option value="sleep">Suspender</option>
               </select>
-              <input id="assetApp" placeholder="App key for launch" aria-label="App key">
-              <button id="sendAssetCommand" class="text-button">Execute</button>
+              <input id="assetApp" placeholder="Clave de app" aria-label="Clave de app">
+              <button id="sendAssetCommand" class="text-button">Ejecutar</button>
             </div>
             <pre id="assetOutput" class="output"></pre>
           </section>
         </div>
-
         <section class="panel bridge-panel">
-          <div class="panel-head">
-            <h3>Bridge Pairing</h3>
-            <button class="text-button" id="loadBridge">Reveal</button>
-          </div>
-          <p class="muted">Use this on the remote PC after installing Python dependencies. The key is a remote-control credential.</p>
+          <div class="panel-head"><h3>Emparejamiento</h3><button id="loadBridge" class="text-button">Mostrar</button></div>
           <pre id="bridgeCommand" class="output"></pre>
-        </section>
-      </section>
-
-      <section id="memory" class="view">
-        <section class="panel">
-          <div class="panel-head">
-            <h3>Recorded Incidents</h3>
-            <button class="text-button" id="memoryRefresh">Refresh</button>
-          </div>
-          <div id="memoryList" class="list"></div>
         </section>
       </section>
     </main>
