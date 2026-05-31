@@ -73,7 +73,7 @@ class HermesClient:
     ) -> AsyncIterator[str]:
         payload = {
             "model": self.model,
-            "stream": True,
+            "stream": False,
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {
@@ -92,20 +92,25 @@ class HermesClient:
         if not endpoint.endswith("/v1"):
             endpoint = f"{endpoint}/v1"
 
-        async with httpx.AsyncClient(timeout=httpx.Timeout(6.0, read=6.0)) as client:
-            async with client.stream("POST", f"{endpoint}/chat/completions", json=payload, headers=headers) as resp:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(18.0, read=18.0)) as client:
+            resp = await client.post(f"{endpoint}/chat/completions", json=payload, headers=headers)
+            body = resp.text
+            if resp.status_code >= 400:
+                if _looks_provider_limited(body):
+                    yield HERMES_LIMIT_MESSAGE
+                    return
                 resp.raise_for_status()
-                async for line in resp.aiter_lines():
-                    if not line.startswith("data: "):
-                        continue
-                    data = line.removeprefix("data: ").strip()
-                    if data == "[DONE]":
-                        break
-                    chunk = json.loads(data)
-                    delta = chunk["choices"][0].get("delta", {})
-                    content = delta.get("content")
-                    if content:
-                        yield content
+            data = resp.json()
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            if content:
+                yield clean_final_answer(content)
+                return
+            hermes_error = data.get("hermes", {}).get("error", "")
+            if _looks_provider_limited(json.dumps(data, ensure_ascii=False)):
+                yield HERMES_LIMIT_MESSAGE
+                return
+            if hermes_error:
+                yield clean_final_answer(str(hermes_error))
 
     def status(self) -> dict[str, object]:
         failure = self._current_hermes_status_message()
@@ -363,6 +368,17 @@ def _line_timestamp(line: str) -> datetime | None:
         return datetime.strptime(line[:23], "%Y-%m-%d %H:%M:%S,%f")
     except ValueError:
         return None
+
+
+def _looks_provider_limited(value: str) -> bool:
+    lower = value.lower()
+    return (
+        "usage_limit_reached" in lower
+        or "http 429" in lower
+        or "usage limit has been reached" in lower
+        or "credential pool: no available entries" in lower
+        or "rate limit" in lower
+    )
 
 
 def _extract_answer(raw: str, prompt: str) -> str:

@@ -3,7 +3,7 @@ id: blulyk-alfred
 name: JARVIS
 tagline: Hermes-powered home intelligence for Umbrel
 category: ai
-version: "1.0.0"
+version: "1.0.1"
 port: 8080
 path: ""
 icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-alfred/icon.svg
@@ -32,8 +32,8 @@ repo: https://github.com/Blulyk/umbrel-app-store
 support: https://github.com/Blulyk/umbrel-app-store/issues
 gallery: []
 releaseNotes: >-
-  Rebuilds the assistant as JARVIS with a new cockpit interface, local reflex
-  commands, direct Hermes API wiring, voice input, spoken replies, and faster
-  failure handling when Hermes is provider-limited.
+  Improves Hermes API calls by using final-response mode so provider failures are
+  reported cleanly instead of closing an empty stream; keeps the JARVIS cockpit,
+  local reflex commands, voice input and spoken replies.
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store
