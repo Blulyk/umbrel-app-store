@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     hermes_base_url: str = Field("http://blulyk-hermes-agent_web_1:9119", alias="ALFRED_HERMES_BASE_URL")
     hermes_model: str = Field("hermes-local", alias="ALFRED_HERMES_MODEL")
     hermes_api_key: str | None = Field(None, alias="ALFRED_HERMES_API_KEY")
+    hermes_state_db_path: str = Field("/hermes-data/state.db", alias="ALFRED_HERMES_STATE_DB")
     docker_control: bool = Field(False, alias="ALFRED_DOCKER_CONTROL")
     auth_log_path: str = Field("/host/var/log/auth.log", alias="ALFRED_AUTH_LOG")
     bridge_key: str | None = Field(None, alias="ALFRED_BRIDGE_KEY")

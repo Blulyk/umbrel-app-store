@@ -3,7 +3,10 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import sqlite3
+import time
 from collections.abc import AsyncIterator
+from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
 import httpx
@@ -21,10 +24,17 @@ PROMPT_MARKERS = (">", "$", "\u276f")
 
 
 class HermesClient:
-    def __init__(self, base_url: str, model: str, api_key: str | None = None) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        model: str,
+        api_key: str | None = None,
+        state_db_path: str | None = None,
+    ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.api_key = api_key
+        self.state_db_path = state_db_path
 
     async def stream_chat(
         self, user_message: str, tool_context: dict[str, object]
@@ -81,10 +91,13 @@ class HermesClient:
         if not safe_message:
             return
 
+        before_id = await asyncio.to_thread(self._latest_message_id)
         async with websockets.connect(self._terminal_ws_url(), open_timeout=10, close_timeout=2) as websocket:
             await self._drain_initial_terminal(websocket)
             await websocket.send(json.dumps({"type": "input", "data": safe_message + "\n"}))
-            response = await self._collect_terminal_response(websocket, safe_message)
+            response = await self._wait_for_stored_response(safe_message, before_id)
+            if not response:
+                response = await self._collect_terminal_response(websocket, safe_message)
 
         if response:
             yield response
@@ -129,6 +142,86 @@ class HermesClient:
 
         return _extract_answer("".join(chunks), prompt)
 
+    def _latest_message_id(self) -> int:
+        db_path = self._state_db_path()
+        if not db_path:
+            return 0
+        try:
+            with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=1) as connection:
+                row = connection.execute("select coalesce(max(id), 0) from messages").fetchone()
+                return int(row[0] or 0)
+        except sqlite3.Error:
+            return 0
+
+    async def _wait_for_stored_response(self, prompt: str, after_id: int) -> str:
+        if not self._state_db_path():
+            return ""
+
+        deadline = time.monotonic() + 90
+        user_message_id = 0
+        session_id = ""
+        while time.monotonic() < deadline:
+            result = await asyncio.to_thread(self._stored_response, prompt, after_id, user_message_id, session_id)
+            if result["content"]:
+                return result["content"]
+            user_message_id = result["user_message_id"]
+            session_id = result["session_id"]
+            await asyncio.sleep(0.5)
+        return ""
+
+    def _stored_response(self, prompt: str, after_id: int, user_message_id: int, session_id: str) -> dict[str, object]:
+        db_path = self._state_db_path()
+        if not db_path:
+            return {"content": "", "user_message_id": user_message_id, "session_id": session_id}
+
+        try:
+            with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=1) as connection:
+                connection.row_factory = sqlite3.Row
+                if not user_message_id:
+                    user_row = connection.execute(
+                        """
+                        select id, session_id
+                        from messages
+                        where role = 'user' and content = ? and id > ?
+                        order by id desc
+                        limit 1
+                        """,
+                        (prompt, after_id),
+                    ).fetchone()
+                    if user_row is None:
+                        return {"content": "", "user_message_id": 0, "session_id": ""}
+                    user_message_id = int(user_row["id"])
+                    session_id = str(user_row["session_id"])
+
+                assistant_row = connection.execute(
+                    """
+                    select content
+                    from messages
+                    where role = 'assistant'
+                      and session_id = ?
+                      and id > ?
+                      and content is not null
+                      and trim(content) != ''
+                    order by id asc
+                    limit 1
+                    """,
+                    (session_id, user_message_id),
+                ).fetchone()
+                content = ""
+                if assistant_row is not None:
+                    content = clean_final_answer(str(assistant_row["content"]))
+                return {"content": content, "user_message_id": user_message_id, "session_id": session_id}
+        except sqlite3.Error:
+            return {"content": "", "user_message_id": user_message_id, "session_id": session_id}
+
+    def _state_db_path(self) -> str:
+        if not self.state_db_path:
+            return ""
+        path = Path(self.state_db_path)
+        if not path.exists():
+            return ""
+        return str(path)
+
 
 def _clean_terminal_text(value: str) -> str:
     clean = ANSI_RE.sub("", value).replace("\r", "")
@@ -152,7 +245,15 @@ def _extract_answer(raw: str, prompt: str) -> str:
         if _is_terminal_noise(stripped):
             continue
         lines.append(stripped)
-    return "\n".join(lines).strip()
+    return clean_final_answer("\n".join(lines))
+
+
+def clean_final_answer(value: str) -> str:
+    return "\n".join(
+        line.rstrip()
+        for line in str(value).splitlines()
+        if line.strip() and not _is_terminal_noise(line.strip())
+    ).strip()
 
 
 def _is_terminal_noise(line: str) -> bool:
