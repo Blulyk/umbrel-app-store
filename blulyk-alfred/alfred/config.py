@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     google_oauth_redirect_uri: str = Field("http://127.0.0.1:8085/oauth2callback", alias="GOOGLE_OAUTH_REDIRECT_URI")
     google_oauth_scopes: str = Field("openid email profile", alias="GOOGLE_OAUTH_SCOPES")
     docker_control: bool = Field(False, alias="ALFRED_DOCKER_CONTROL")
+    system_control: bool = Field(False, alias="JARVIS_SYSTEM_CONTROL")
+    host_shell_image: str = Field("alpine:3.20", alias="JARVIS_HOST_SHELL_IMAGE")
     auth_log_path: str = Field("/host/var/log/auth.log", alias="ALFRED_AUTH_LOG")
     bridge_key: str | None = Field(None, alias="ALFRED_BRIDGE_KEY")
     bridge_secret: str | None = Field(None, alias="ALFRED_BRIDGE_SECRET")

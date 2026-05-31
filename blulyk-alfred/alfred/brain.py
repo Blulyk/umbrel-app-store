@@ -95,6 +95,8 @@ class JarvisBrain:
                 "codex_sandbox": "read-only",
                 "codex_timeout_seconds": self.settings.codex_timeout_seconds,
                 "google_max_output_tokens": 700,
+                "docker_control": self.settings.docker_control,
+                "system_control": self.settings.system_control,
             },
         }
 

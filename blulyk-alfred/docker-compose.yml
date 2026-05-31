@@ -7,7 +7,7 @@ services:
       APP_PORT: 8080
 
   web:
-    image: ghcr.io/blulyk/alfred-umbrel:1.6.0
+    image: ghcr.io/blulyk/alfred-umbrel:1.6.1
     container_name: blulyk-alfred_web_1
     restart: on-failure
     stop_grace_period: 1m
@@ -15,6 +15,8 @@ services:
       - "${APP_DATA_DIR}/data:/data"
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "/var/log:/host/var/log:ro"
+      - "/var/log/journal:/host/var/log/journal:ro"
+      - "/run/log/journal:/host/run/log/journal:ro"
       - "/etc/localtime:/etc/localtime:ro"
     environment:
       TZ: "${TZ:-Europe/Madrid}"
@@ -30,7 +32,9 @@ services:
       GOOGLE_OAUTH_CLIENT_SECRET: "${GOOGLE_OAUTH_CLIENT_SECRET:-}"
       GOOGLE_OAUTH_REDIRECT_URI: "${GOOGLE_OAUTH_REDIRECT_URI:-http://127.0.0.1:8085/oauth2callback}"
       GOOGLE_OAUTH_SCOPES: "${GOOGLE_OAUTH_SCOPES:-openid email profile}"
-      ALFRED_DOCKER_CONTROL: "false"
+      ALFRED_DOCKER_CONTROL: "true"
+      JARVIS_SYSTEM_CONTROL: "true"
+      JARVIS_HOST_SHELL_IMAGE: "${JARVIS_HOST_SHELL_IMAGE:-alpine:3.20}"
       ALFRED_AUTH_LOG: "/host/var/log/auth.log"
       ALFRED_BRIDGE_SECRET: "${APP_SEED}"
     depends_on:

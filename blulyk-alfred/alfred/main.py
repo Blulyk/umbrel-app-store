@@ -16,7 +16,8 @@ from alfred.docker_control import docker_summary
 from alfred.google_oauth import GoogleOAuthController
 from alfred.memory import MemoryStore
 from alfred.schemas import AssetCommandRequest, ChatGPTOAuthSettingsRequest, ChatRequest, CodexAuthImportRequest, GoogleSettingsRequest, ToolCallRequest
-from alfred.threats import scan_auth_log
+from alfred.system_control import host_auth_journal
+from alfred.threats import scan_auth_log, scan_auth_text
 from alfred.tool_router import ToolRouter
 from alfred.vitals import vitals_payload
 
@@ -335,7 +336,7 @@ async def maybe_execute_json_tool(message: str) -> dict[str, Any] | None:
 
 async def gather_context() -> dict[str, Any]:
     vitals_task = asyncio.to_thread(vitals_payload, settings)
-    threats_task = asyncio.to_thread(scan_auth_log, settings.auth_log_path)
+    threats_task = threat_context()
     docker_task = asyncio.to_thread(docker_summary, settings)
     incidents_task = memory.recent_incidents(5)
     asset_task = assets.list_assets()
@@ -349,6 +350,19 @@ async def gather_context() -> dict[str, Any]:
         "recent_incidents": incident_result,
         "assets": asset_result,
     }
+
+
+async def threat_context() -> dict[str, object]:
+    result = await asyncio.to_thread(scan_auth_log, settings.auth_log_path)
+    if result.get("status") != "Unavailable" or not settings.system_control:
+        return result
+    journal = await asyncio.to_thread(host_auth_journal, settings)
+    if journal.get("ok"):
+        fallback = scan_auth_text(str(journal.get("output", "")).splitlines())
+        fallback["source"] = "host-journal"
+        return fallback
+    result["journal_fallback_error"] = journal.get("error")
+    return result
 
 
 def run() -> None:
