@@ -23,6 +23,7 @@ TERMINAL_RULE_CHARS = set("-_|+=~: .[]()0123456789")
 PROMPT_MARKERS = (">", "$", "\u276f")
 HERMES_LIMIT_MESSAGE = "Hermes no puede responder ahora: limite de uso del proveedor alcanzado."
 HERMES_EMPTY_MESSAGE = "Hermes recibio la orden, pero no devolvio una respuesta final."
+TERMINAL_MODE = "alfred"
 
 
 class HermesClient:
@@ -103,6 +104,7 @@ class HermesClient:
 
         before_id = await asyncio.to_thread(self._latest_message_id)
         log_offset = await asyncio.to_thread(self._agent_log_offset)
+        await self._restart_terminal_session()
         async with websockets.connect(
             self._terminal_ws_url(),
             open_timeout=10,
@@ -127,7 +129,17 @@ class HermesClient:
         path = parsed.path.rstrip("/")
         if path.endswith("/v1"):
             path = path[:-3]
-        return urlunparse((scheme, parsed.netloc, f"{path}/ws", "", "mode=chat", ""))
+        return urlunparse((scheme, parsed.netloc, f"{path}/ws", "", f"mode={TERMINAL_MODE}", ""))
+
+    async def _restart_terminal_session(self) -> None:
+        endpoint = self.base_url
+        if endpoint.endswith("/v1"):
+            endpoint = endpoint[:-3]
+        async with httpx.AsyncClient(timeout=5) as client:
+            try:
+                await client.post(f"{endpoint}/session/restart", params={"mode": TERMINAL_MODE})
+            except httpx.HTTPError:
+                pass
 
     async def _drain_initial_terminal(self, websocket: websockets.ClientConnection) -> None:
         quiet_rounds = 0

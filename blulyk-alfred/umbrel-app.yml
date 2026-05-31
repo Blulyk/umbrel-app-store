@@ -3,7 +3,7 @@ id: blulyk-alfred
 name: ALFRED
 tagline: Tactical local AI operations for Umbrel
 category: ai
-version: "0.1.7"
+version: "0.1.8"
 port: 8080
 path: ""
 icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-alfred/icon.svg
@@ -32,7 +32,7 @@ repo: https://github.com/Blulyk/umbrel-app-store
 support: https://github.com/Blulyk/umbrel-app-store/issues
 gallery: []
 releaseNotes: >-
-  Detects exhausted Hermes provider limits from the Hermes runtime log and
-  returns a single clean status sentence instead of an empty terminal response.
+  Uses a dedicated fresh Hermes terminal session for ALFRED prompts so old
+  terminal buffers cannot pollute or block clean responses.
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store
