@@ -85,7 +85,14 @@
         <section class="terminal">
           <div class="terminal-head">
             <h2>Command Console</h2>
-            <button id="clearConsole" class="icon-button" title="Clear console" aria-label="Clear console">⌫</button>
+            <div class="console-actions">
+              <label class="voice-toggle">
+                <input id="voiceToggle" type="checkbox">
+                <span>Voice</span>
+              </label>
+              <button id="repeatVoice" class="icon-button" title="Repeat last response" aria-label="Repeat last response">V</button>
+              <button id="clearConsole" class="icon-button" title="Clear console" aria-label="Clear console">X</button>
+            </div>
           </div>
           <div id="transcript" class="transcript" aria-live="polite"></div>
           <form id="chatForm" class="composer">

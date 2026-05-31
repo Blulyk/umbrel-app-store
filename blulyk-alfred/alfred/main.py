@@ -21,7 +21,7 @@ from alfred.vitals import vitals_payload
 settings = get_settings()
 memory = MemoryStore(settings.db_path)
 assets = AssetRegistry(settings.fernet_key)
-hermes = HermesClient(settings.hermes_base_url, settings.hermes_model)
+hermes = HermesClient(settings.hermes_base_url, settings.hermes_model, settings.hermes_api_key)
 tools = ToolRouter(settings, memory, assets)
 
 

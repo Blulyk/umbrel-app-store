@@ -1,20 +1,41 @@
+from __future__ import annotations
+
+import asyncio
 import json
+import re
 from collections.abc import AsyncIterator
+from urllib.parse import urlparse, urlunparse
 
 import httpx
+import websockets
 
 
 SYSTEM_PROMPT = """You are ALFRED: a precise, formal local systems steward.
+You are the user's private operations intelligence, with Hermes Agent as your reasoning core.
 Begin directly with status, data, or analysis. Avoid generic assistant pleasantries.
-Use dry British restraint sparingly. Never invent tool results."""
+Speak in clear Spanish when the user writes in Spanish. Never invent tool results."""
+
+ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)")
 
 
 class HermesClient:
-    def __init__(self, base_url: str, model: str) -> None:
+    def __init__(self, base_url: str, model: str, api_key: str | None = None) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
+        self.api_key = api_key
 
     async def stream_chat(
+        self, user_message: str, tool_context: dict[str, object]
+    ) -> AsyncIterator[str]:
+        try:
+            async for chunk in self._stream_openai_chat(user_message, tool_context):
+                yield chunk
+            return
+        except Exception:
+            async for chunk in self._stream_terminal_chat(user_message, tool_context):
+                yield chunk
+
+    async def _stream_openai_chat(
         self, user_message: str, tool_context: dict[str, object]
     ) -> AsyncIterator[str]:
         payload = {
@@ -30,8 +51,16 @@ class HermesClient:
                 {"role": "user", "content": user_message},
             ],
         }
+        headers = {}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        endpoint = self.base_url
+        if not endpoint.endswith("/v1"):
+            endpoint = f"{endpoint}/v1"
+
         async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, read=None)) as client:
-            async with client.stream("POST", f"{self.base_url}/chat/completions", json=payload) as resp:
+            async with client.stream("POST", f"{endpoint}/chat/completions", json=payload, headers=headers) as resp:
                 resp.raise_for_status()
                 async for line in resp.aiter_lines():
                     if not line.startswith("data: "):
@@ -44,3 +73,88 @@ class HermesClient:
                     content = delta.get("content")
                     if content:
                         yield content
+
+    async def _stream_terminal_chat(
+        self, user_message: str, tool_context: dict[str, object]
+    ) -> AsyncIterator[str]:
+        ws_url = self._terminal_ws_url()
+        context_json = json.dumps(tool_context, ensure_ascii=False, separators=(",", ":"))
+        safe_message = " ".join(user_message.split())
+        prompt = (
+            "ALFRED context follows as private telemetry JSON; do not dump it unless asked. "
+            f"Context: {context_json}. "
+            f"User request: {safe_message}. "
+            "Respond as ALFRED in the user's language. Be concise, useful, and ready to route actions."
+        )
+        async with websockets.connect(ws_url, open_timeout=10, close_timeout=2) as websocket:
+            await self._drain_initial_terminal(websocket)
+            await websocket.send(json.dumps({"type": "input", "data": prompt + "\n"}))
+            response = await self._collect_terminal_response(websocket, prompt)
+
+        if response:
+            yield response
+            return
+        yield "Hermes esta conectado, pero no devolvio respuesta legible desde la consola."
+
+    def _terminal_ws_url(self) -> str:
+        parsed = urlparse(self.base_url)
+        scheme = "wss" if parsed.scheme == "https" else "ws"
+        path = parsed.path.rstrip("/")
+        if path.endswith("/v1"):
+            path = path[:-3]
+        return urlunparse((scheme, parsed.netloc, f"{path}/ws", "", "mode=chat", ""))
+
+    async def _drain_initial_terminal(self, websocket: websockets.ClientConnection) -> None:
+        while True:
+            try:
+                await asyncio.wait_for(websocket.recv(), timeout=0.2)
+            except TimeoutError:
+                return
+
+    async def _collect_terminal_response(self, websocket: websockets.ClientConnection, prompt: str) -> str:
+        chunks: list[str] = []
+        saw_output = False
+        idle_rounds = 0
+        for _ in range(90):
+            try:
+                message = await asyncio.wait_for(websocket.recv(), timeout=0.5)
+            except TimeoutError:
+                if saw_output:
+                    idle_rounds += 1
+                    if idle_rounds >= 4:
+                        break
+                continue
+
+            text = message.decode(errors="replace") if isinstance(message, bytes) else str(message)
+            clean = _clean_terminal_text(text)
+            if clean:
+                saw_output = True
+                idle_rounds = 0
+                chunks.append(clean)
+
+        return _extract_answer("".join(chunks), prompt)
+
+
+def _clean_terminal_text(value: str) -> str:
+    return ANSI_RE.sub("", value).replace("\r", "")
+
+
+def _extract_answer(raw: str, prompt: str) -> str:
+    text = raw.replace(prompt, "")
+    markers = ["Respond as ALFRED", "User request:", "ALFRED context follows."]
+    for marker in markers:
+        index = text.rfind(marker)
+        if index >= 0:
+            text = text[index + len(marker) :]
+
+    lines = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            if lines and lines[-1]:
+                lines.append("")
+            continue
+        if stripped in {">", "$"} or stripped.startswith("hermes "):
+            continue
+        lines.append(stripped)
+    return "\n".join(lines).strip()

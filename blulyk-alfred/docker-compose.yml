@@ -22,7 +22,7 @@ services:
       ALFRED_PORT: "8080"
       ALFRED_DB: "/data/alfred.sqlite3"
       ALFRED_REDIS_URL: "redis://blulyk-alfred_redis_1:6379/0"
-      ALFRED_HERMES_BASE_URL: "http://hermes:8080/v1"
+      ALFRED_HERMES_BASE_URL: "http://blulyk-hermes-agent_web_1:9119"
       ALFRED_HERMES_MODEL: "hermes-local"
       ALFRED_DOCKER_CONTROL: "false"
       ALFRED_AUTH_LOG: "/host/var/log/auth.log"

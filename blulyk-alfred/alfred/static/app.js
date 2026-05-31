@@ -1,5 +1,6 @@
 const state = {
-  transcript: []
+  transcript: [],
+  lastAssistantText: ""
 };
 
 const $ = (id) => document.getElementById(id);
@@ -20,8 +21,10 @@ $("reloadAssets").addEventListener("click", loadAssets);
 $("memoryRefresh").addEventListener("click", loadIncidents);
 $("clearConsole").addEventListener("click", () => {
   state.transcript = [];
+  state.lastAssistantText = "";
   renderTranscript();
 });
+$("repeatVoice").addEventListener("click", () => speak(state.lastAssistantText, true));
 $("loadBridge").addEventListener("click", loadBridgeConfig);
 $("sendAssetCommand").addEventListener("click", sendAssetCommand);
 
@@ -48,6 +51,8 @@ $("chatForm").addEventListener("submit", async (event) => {
       assistant.textContent += decoder.decode(value, { stream: true });
       $("transcript").scrollTop = $("transcript").scrollHeight;
     }
+    state.lastAssistantText = assistant.textContent.trim();
+    if ($("voiceToggle").checked) speak(state.lastAssistantText, false);
   } catch (error) {
     assistant.textContent = `Console fault: ${error.message}`;
   }
@@ -135,6 +140,20 @@ function appendMessage(role, content) {
 
 function renderTranscript() {
   $("transcript").innerHTML = "";
+}
+
+function speak(text, force) {
+  if (!text || !("speechSynthesis" in window)) return;
+  if (!force && !$("voiceToggle").checked) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = /[áéíóúñ¿¡]/i.test(text) ? "es-ES" : "en-GB";
+  utterance.rate = 0.98;
+  utterance.pitch = 0.88;
+  const voices = window.speechSynthesis.getVoices();
+  const preferred = voices.find((voice) => voice.lang === utterance.lang) || voices.find((voice) => voice.lang.startsWith(utterance.lang.slice(0, 2)));
+  if (preferred) utterance.voice = preferred;
+  window.speechSynthesis.speak(utterance);
 }
 
 async function getJson(url, options) {
