@@ -147,7 +147,7 @@ async def chat(request: ChatRequest) -> StreamingResponse:
             async for chunk in hermes.stream_chat(request.message, context):
                 yield chunk.encode()
         except Exception:
-            yield "Hermes no devolvio una respuesta final limpia.".encode()
+            yield "Hermes recibio la orden, pero no devolvio una respuesta final.".encode()
 
     return StreamingResponse(stream(), media_type="text/plain; charset=utf-8")
 

@@ -21,6 +21,8 @@ Speak in clear Spanish when the user writes in Spanish. Never invent tool result
 ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)")
 TERMINAL_RULE_CHARS = set("-_|+=~: .[]()0123456789")
 PROMPT_MARKERS = (">", "$", "\u276f")
+HERMES_LIMIT_MESSAGE = "Hermes no puede responder ahora: limite de uso del proveedor alcanzado."
+HERMES_EMPTY_MESSAGE = "Hermes recibio la orden, pero no devolvio una respuesta final."
 
 
 class HermesClient:
@@ -40,12 +42,20 @@ class HermesClient:
         self, user_message: str, tool_context: dict[str, object]
     ) -> AsyncIterator[str]:
         try:
+            emitted = False
             async for chunk in self._stream_openai_chat(user_message, tool_context):
+                emitted = True
                 yield chunk
+            if not emitted:
+                yield HERMES_EMPTY_MESSAGE
             return
         except Exception:
+            emitted = False
             async for chunk in self._stream_terminal_chat(user_message):
+                emitted = True
                 yield chunk
+            if not emitted:
+                yield self._hermes_failure_message(0) or HERMES_EMPTY_MESSAGE
 
     async def _stream_openai_chat(
         self, user_message: str, tool_context: dict[str, object]
@@ -92,6 +102,7 @@ class HermesClient:
             return
 
         before_id = await asyncio.to_thread(self._latest_message_id)
+        log_offset = await asyncio.to_thread(self._agent_log_offset)
         async with websockets.connect(
             self._terminal_ws_url(),
             open_timeout=10,
@@ -101,9 +112,11 @@ class HermesClient:
             await self._cancel_active_terminal_turn(websocket)
             await self._drain_initial_terminal(websocket)
             await websocket.send(json.dumps({"type": "input", "data": safe_message + "\n"}))
-            response = await self._wait_for_stored_response(safe_message, before_id)
+            response = await self._wait_for_stored_response(safe_message, before_id, log_offset)
             if not response:
                 response = await self._collect_terminal_response(websocket, safe_message)
+            if not response:
+                response = self._hermes_failure_message(log_offset)
 
         if response:
             yield response
@@ -163,7 +176,7 @@ class HermesClient:
         except sqlite3.Error:
             return 0
 
-    async def _wait_for_stored_response(self, prompt: str, after_id: int) -> str:
+    async def _wait_for_stored_response(self, prompt: str, after_id: int, log_offset: int) -> str:
         if not self._state_db_path():
             return ""
 
@@ -176,6 +189,10 @@ class HermesClient:
                 return result["content"]
             user_message_id = result["user_message_id"]
             session_id = result["session_id"]
+            if user_message_id:
+                failure = await asyncio.to_thread(self._hermes_failure_message, log_offset)
+                if failure:
+                    return failure
             await asyncio.sleep(0.5)
         return ""
 
@@ -231,6 +248,42 @@ class HermesClient:
         if not path.exists():
             return ""
         return str(path)
+
+    def _agent_log_path(self) -> Path | None:
+        db_path = self._state_db_path()
+        if not db_path:
+            return None
+        log_path = Path(db_path).parent / "logs" / "agent.log"
+        return log_path if log_path.exists() else None
+
+    def _agent_log_offset(self) -> int:
+        log_path = self._agent_log_path()
+        if not log_path:
+            return 0
+        try:
+            return log_path.stat().st_size
+        except OSError:
+            return 0
+
+    def _hermes_failure_message(self, log_offset: int) -> str:
+        log_path = self._agent_log_path()
+        if not log_path:
+            return ""
+        try:
+            current_size = log_path.stat().st_size
+            start = min(max(log_offset, 0), current_size)
+            with log_path.open("rb") as handle:
+                handle.seek(start)
+                text = handle.read(64_000).decode(errors="replace")
+        except OSError:
+            return ""
+
+        lower = text.lower()
+        if "usage_limit_reached" in lower or "http 429" in lower or "usage limit has been reached" in lower:
+            return HERMES_LIMIT_MESSAGE
+        if "api call failed after" in lower:
+            return HERMES_EMPTY_MESSAGE
+        return ""
 
 
 def _clean_terminal_text(value: str) -> str:
