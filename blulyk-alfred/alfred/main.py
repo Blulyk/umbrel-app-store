@@ -1,17 +1,19 @@
 import asyncio
+import html
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from alfred.asset_registry import AssetRegistry
 from alfred.brain import JarvisBrain
 from alfred.config import get_settings
 from alfred.docker_control import docker_summary
+from alfred.google_oauth import GoogleOAuthController
 from alfred.memory import MemoryStore
 from alfred.schemas import AssetCommandRequest, ChatGPTOAuthSettingsRequest, ChatRequest, CodexAuthImportRequest, GoogleSettingsRequest, ToolCallRequest
 from alfred.threats import scan_auth_log
@@ -23,6 +25,7 @@ memory = MemoryStore(settings.db_path)
 assets = AssetRegistry(settings.fernet_key)
 brain = JarvisBrain(settings, memory)
 tools = ToolRouter(settings, memory, assets)
+google_oauth = GoogleOAuthController(settings, memory)
 
 
 @asynccontextmanager
@@ -64,6 +67,39 @@ async def configure_google(request: GoogleSettingsRequest) -> dict[str, Any]:
 @app.post("/settings/google/test")
 async def test_google() -> dict[str, Any]:
     return await brain.test_google()
+
+
+@app.get("/settings/google/oauth/status")
+async def google_oauth_status() -> dict[str, Any]:
+    return await google_oauth.status()
+
+
+@app.get("/oauth/google/start")
+async def start_google_oauth() -> RedirectResponse:
+    try:
+        return RedirectResponse(await google_oauth.authorization_url())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/oauth/google/callback")
+@app.get("/oauth2callback")
+async def google_oauth_callback(code: str, state: str) -> HTMLResponse:
+    result = await google_oauth.callback(code, state)
+    if not result.get("ok"):
+        error = html.escape(str(result.get("error") or "Error OAuth desconocido."))
+        return HTMLResponse(f"<h1>JARVIS OAuth no completado</h1><p>{error}</p>", status_code=400)
+    return HTMLResponse("<h1>Google OAuth conectado</h1><p>Puede cerrar esta ventana y volver a JARVIS.</p>")
+
+
+@app.post("/settings/google/oauth/refresh")
+async def refresh_google_oauth() -> dict[str, Any]:
+    return await google_oauth.refresh()
+
+
+@app.post("/settings/google/oauth/disconnect")
+async def disconnect_google_oauth() -> dict[str, Any]:
+    return await google_oauth.disconnect()
 
 
 @app.post("/settings/chatgpt-oauth")
@@ -204,22 +240,44 @@ async def asset_socket(websocket: WebSocket) -> None:
 @app.post("/chat")
 async def chat(request: ChatRequest) -> StreamingResponse:
     async def stream() -> AsyncIterator[bytes]:
-        local_reply = await maybe_answer_locally(request.message)
-        if local_reply:
-            yield local_reply.encode()
-            return
-        tool_result = await maybe_execute_json_tool(request.message)
-        if tool_result is not None:
-            yield json.dumps(tool_result, ensure_ascii=False, indent=2).encode()
-            return
-        context = await gather_context()
-        try:
-            async for chunk in brain.stream_chat(request.message, context):
-                yield chunk.encode()
-        except Exception:
-            yield "La mente externa de JARVIS no devolvio una respuesta final.".encode()
+        async for chunk in chat_chunks(request.message):
+            yield chunk.encode()
 
     return StreamingResponse(stream(), media_type="text/plain; charset=utf-8")
+
+
+@app.get("/chat/stream")
+async def chat_stream(message: str) -> StreamingResponse:
+    if not message.strip():
+        raise HTTPException(status_code=400, detail="Mensaje vacio.")
+
+    async def stream() -> AsyncIterator[bytes]:
+        async for chunk in chat_chunks(message):
+            yield f"data: {json.dumps({'chunk': chunk}, ensure_ascii=False)}\n\n".encode()
+        yield b"event: done\ndata: {}\n\n"
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+async def chat_chunks(message: str) -> AsyncIterator[str]:
+    local_reply = await maybe_answer_locally(message)
+    if local_reply:
+        yield local_reply
+        return
+    tool_result = await maybe_execute_json_tool(message)
+    if tool_result is not None:
+        yield json.dumps(tool_result, ensure_ascii=False, indent=2)
+        return
+    context = await gather_context()
+    try:
+        async for chunk in brain.stream_chat(message, context):
+            yield chunk
+    except Exception:
+        yield "La mente externa de JARVIS no devolvio una respuesta final."
 
 
 async def maybe_answer_locally(message: str) -> str | None:

@@ -20,7 +20,7 @@ from alfred.config import Settings
 from alfred.memory import MemoryStore
 
 
-SYSTEM_PROMPT = """You are JARVIS, Rafael's private intelligence layer inside umbrelOS.
+DEFAULT_SYSTEM_PROMPT = """You are JARVIS, Rafael's private intelligence layer inside umbrelOS.
 You are calm, precise, technically capable, and direct.
 Use the provided local telemetry. Do not invent tool results.
 When the user writes in Spanish, answer in Spanish.
@@ -33,6 +33,7 @@ class JarvisBrain:
         self.memory = memory
         self._codex_login_process: asyncio.subprocess.Process | None = None
         self._codex_login: dict[str, Any] | None = None
+        self.system_prompt = _load_personality_prompt()
 
     async def stream_chat(
         self, user_message: str, tool_context: dict[str, object]
@@ -226,7 +227,7 @@ class JarvisBrain:
 
         compact_context = _compact_context(tool_context)
         prompt = (
-            f"{SYSTEM_PROMPT}\n\n"
+            f"{self.system_prompt}\n\n"
             "Responde solo con la respuesta final para Rafael. No incluyas trazas, comandos, JSONL, logs, "
             "marcadores de terminal ni explicaciones sobre Codex. Si falta informacion, dilo de forma breve.\n\n"
             "Contexto local compacto:\n"
@@ -310,7 +311,7 @@ class JarvisBrain:
         model = await self._google_model()
         compact_context = _compact_context(tool_context)
         payload = {
-            "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+            "systemInstruction": {"parts": [{"text": self.system_prompt}]},
             "contents": [
                 {
                     "role": "user",
@@ -455,6 +456,22 @@ def _compact_context(context: dict[str, object]) -> dict[str, object]:
         "assets_count": len(context.get("assets", []) if isinstance(context.get("assets"), list) else []),
         "recent_incidents": context.get("recent_incidents", [])[:3] if isinstance(context.get("recent_incidents"), list) else [],
     }
+
+
+def _load_personality_prompt() -> str:
+    candidates = [
+        Path("/app/personality.md"),
+        Path(__file__).resolve().parents[1] / "personality.md",
+        Path(__file__).resolve().parent / "personality.md",
+    ]
+    for path in candidates:
+        try:
+            text = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if text:
+            return text
+    return DEFAULT_SYSTEM_PROMPT
 
 
 def _cache_key(user_message: str, context: dict[str, object]) -> str:

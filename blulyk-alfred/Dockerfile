@@ -16,6 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY alfred ./alfred
 COPY asset_bridge.py ./asset_bridge.py
+COPY personality.md ./personality.md
 
 EXPOSE 8080
 

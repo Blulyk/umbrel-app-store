@@ -1,226 +1,516 @@
+const $ = (id) => document.getElementById(id);
+
 const state = {
-  activePanel: "config",
+  view: { x: 0, y: 0, scale: 1 },
+  widgets: [],
+  nextWidgetId: 1,
+  drag: null,
+  pan: null,
+  raf: 0,
   lastAssistantText: "",
   recognition: null,
   listening: false,
   codexLoginTimer: null,
-  coordinateTimer: null
+  statusTimer: null
 };
 
-const $ = (id) => document.getElementById(id);
-const panelMeta = {
-  config: ["CONFIGURATION", "Brain Link"],
-  metrics: ["CORE METRICS", "Umbrel Telemetry"],
-  logs: ["LOGS", "Operational Memory"],
-  overrides: ["SYSTEM OVERRIDES", "Remote Assets"]
+const widgetDefaults = {
+  chat: { title: "JARVIS Chat", x: -430, y: 250, w: 860, h: 540 },
+  metrics: { title: "Core Metrics", x: 360, y: -430, w: 430, h: 360 },
+  config: { title: "Brain Link", x: -820, y: -420, w: 500, h: 520 },
+  logs: { title: "Operational Logs", x: -910, y: 120, w: 470, h: 380 },
+  assets: { title: "Remote Assets", x: 470, y: 110, w: 470, h: 430 },
+  custom: { title: "Dynamic Widget", x: 120, y: 420, w: 420, h: 300 }
 };
 
 window.addEventListener("load", () => {
-  setTimeout(() => $("arcHud").classList.remove("booting"), 2100);
-  startCoordinateNoise();
+  setTimeout(() => $("arcApp").classList.remove("booting"), 2050);
+  setupCanvas();
+  setupCommands();
+  resetView();
+  addWidget("metrics");
+  addWidget("config");
+  addWidget("chat");
+  refreshAll();
+  state.statusTimer = setInterval(refreshAll, 30000);
 });
 
-document.querySelectorAll(".node-button").forEach((button) => {
-  button.addEventListener("click", () => openPanel(button.dataset.panel));
-});
+function setupCanvas() {
+  $("resetView").addEventListener("click", resetView);
+  $("refreshAll").addEventListener("click", refreshAll);
+  $("coreButton").addEventListener("click", () => {
+    pulseCore();
+    focusOrCreate("chat");
+  });
+  document.querySelectorAll(".dock-button").forEach((button) => {
+    button.addEventListener("click", () => focusOrCreate(button.dataset.widget));
+  });
 
-$("coreButton").addEventListener("click", initializeChat);
-$("closeChat").addEventListener("click", () => $("chatOverlay").classList.remove("open"));
-$("closePanel").addEventListener("click", () => $("sidePanel").classList.remove("open"));
-$("refreshAll").addEventListener("click", refreshAll);
-$("reloadDocker").addEventListener("click", loadDocker);
-$("reloadIncidents").addEventListener("click", loadStatus);
-$("reloadAssets").addEventListener("click", loadAssets);
-$("reloadCapabilities").addEventListener("click", loadStatus);
-$("loadBridge").addEventListener("click", loadBridgeConfig);
-$("sendAssetCommand").addEventListener("click", sendAssetCommand);
-$("googleForm").addEventListener("submit", saveGoogleSettings);
-$("testGoogle").addEventListener("click", testGoogleSettings);
-$("codexAuthForm").addEventListener("submit", importCodexAuth);
-$("startCodexLogin").addEventListener("click", startCodexLogin);
-$("repeatVoice").addEventListener("click", () => speak(state.lastAssistantText, true));
-$("stopVoice").addEventListener("click", stopVoice);
-$("listenVoice").addEventListener("click", toggleDictation);
-$("clearConsole").addEventListener("click", () => {
-  stopVoice();
-  $("transcript").innerHTML = "";
-  state.lastAssistantText = "";
-});
-$("voiceToggle").addEventListener("change", () => {
-  if (!$("voiceToggle").checked) stopVoice();
-});
-
-$("quickForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const value = $("quickInput").value.trim();
-  if (!value) return;
-  $("quickInput").value = "";
-  initializeChat();
-  await sendChat(value);
-});
-
-$("chatForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const input = $("promptInput");
-  const message = input.value.trim();
-  if (!message) return;
-  input.value = "";
-  await sendChat(message);
-});
-
-function initializeChat() {
-  $("arcHud").classList.add("core-fired");
-  $("chatOverlay").classList.add("open");
-  setTimeout(() => $("arcHud").classList.remove("core-fired"), 850);
-  setTimeout(() => $("promptInput").focus(), 220);
+  const viewport = $("canvasViewport");
+  viewport.addEventListener("wheel", onWheel, { passive: false });
+  viewport.addEventListener("pointerdown", onCanvasPointerDown);
+  window.addEventListener("pointermove", onPointerMove);
+  window.addEventListener("pointerup", endPointerAction);
+  window.addEventListener("resize", resetView);
 }
 
-function openPanel(name) {
-  state.activePanel = name;
-  $("sidePanel").classList.add("open");
-  document.querySelectorAll(".panel-view").forEach((panel) => panel.classList.remove("active-panel"));
-  $(`panel-${name}`).classList.add("active-panel");
-  document.querySelectorAll(".node-button").forEach((button) => button.classList.toggle("active", button.dataset.panel === name));
-  const [title, eyebrow] = panelMeta[name] || panelMeta.config;
-  $("panelTitle").textContent = title;
-  $("panelEyebrow").textContent = eyebrow;
+function setupCommands() {
+  $("commandBar").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const prompt = $("widgetCommandInput").value.trim();
+    if (!prompt) return;
+    $("widgetCommandInput").value = "";
+    const type = inferWidgetType(prompt);
+    const widget = addWidget(type, { prompt, title: titleFromPrompt(prompt, type), x: 140, y: 140 });
+    toast(`Widget generado: ${widget.title}`);
+    if (type === "chat") {
+      const input = widget.element.querySelector("[data-role='prompt']");
+      input.value = prompt;
+      sendChatFromWidget(widget, prompt);
+    }
+  });
 }
 
-async function sendChat(message) {
-  appendMessage("user", message);
-  const assistant = appendMessage("assistant", "Pensando.");
-  try {
-    const response = await fetch("/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message })
+function resetView() {
+  const viewport = $("canvasViewport");
+  state.view.scale = window.innerWidth < 720 ? 0.72 : 0.9;
+  state.view.x = viewport.clientWidth / 2;
+  state.view.y = viewport.clientHeight / 2;
+  scheduleWorldTransform();
+}
+
+function onWheel(event) {
+  event.preventDefault();
+  const before = screenToWorld(event.clientX, event.clientY);
+  const delta = Math.sign(event.deltaY) * -0.08;
+  state.view.scale = clamp(state.view.scale + delta, 0.36, 1.85);
+  const after = worldToScreen(before.x, before.y);
+  state.view.x += event.clientX - after.x;
+  state.view.y += event.clientY - after.y;
+  scheduleWorldTransform();
+}
+
+function onCanvasPointerDown(event) {
+  if (event.target.closest(".hud-widget, .arc-core, .dock, .command-bar, .topbar")) return;
+  state.pan = { x: event.clientX, y: event.clientY, ox: state.view.x, oy: state.view.y };
+  $("canvasViewport").setPointerCapture(event.pointerId);
+}
+
+function onPointerMove(event) {
+  if (state.pan) {
+    state.view.x = state.pan.ox + event.clientX - state.pan.x;
+    state.view.y = state.pan.oy + event.clientY - state.pan.y;
+    scheduleWorldTransform();
+    return;
+  }
+  if (!state.drag) return;
+  const widget = state.widgets.find((item) => item.id === state.drag.id);
+  if (!widget) return;
+  const dx = (event.clientX - state.drag.x) / state.view.scale;
+  const dy = (event.clientY - state.drag.y) / state.view.scale;
+  if (state.drag.mode === "move") {
+    widget.x = state.drag.ox + dx;
+    widget.y = state.drag.oy + dy;
+  } else {
+    widget.w = clamp(state.drag.ow + dx, 300, 980);
+    widget.h = clamp(state.drag.oh + dy, 220, 820);
+  }
+  scheduleWidgetTransform(widget);
+}
+
+function endPointerAction() {
+  state.pan = null;
+  state.drag = null;
+}
+
+function addWidget(type, overrides = {}) {
+  const defaults = widgetDefaults[type] || widgetDefaults.custom;
+  const widget = {
+    id: `w${state.nextWidgetId++}`,
+    type,
+    title: overrides.title || defaults.title,
+    prompt: overrides.prompt || "",
+    x: overrides.x ?? defaults.x,
+    y: overrides.y ?? defaults.y,
+    w: overrides.w ?? defaults.w,
+    h: overrides.h ?? defaults.h
+  };
+  const element = document.createElement("article");
+  element.className = `hud-widget widget-${type}`;
+  element.dataset.widgetId = widget.id;
+  element.innerHTML = widgetShell(widget);
+  widget.element = element;
+  $("widgetLayer").appendChild(element);
+  state.widgets.push(widget);
+  bindWidget(widget);
+  scheduleWidgetTransform(widget);
+  requestAnimationFrame(() => element.classList.add("online"));
+  loadWidgetData(widget);
+  return widget;
+}
+
+function widgetShell(widget) {
+  return `
+    <div class="widget-frame" aria-hidden="true"></div>
+    <header class="widget-head" data-drag-handle>
+      <div><p class="eyebrow">${escapeHtml(widget.type)}</p><h2>${escapeHtml(widget.title)}</h2></div>
+      <div class="widget-actions">
+        <button class="mini-button" data-action="refresh" type="button">SYNC</button>
+        <button class="mini-button" data-action="close" type="button">X</button>
+      </div>
+    </header>
+    <section class="widget-body">${widgetContent(widget)}</section>
+    <button class="resize-handle" data-resize-handle type="button" aria-label="Redimensionar"></button>
+  `;
+}
+
+function widgetContent(widget) {
+  if (widget.type === "chat") return `
+    <div class="transcript" data-role="transcript" aria-live="polite"></div>
+    <form class="composer" data-role="chat-form">
+      <input data-role="prompt" autocomplete="off" placeholder="Pregunta, orden o llamada JSON">
+      <button class="send-button" type="submit">SEND</button>
+    </form>
+    <div class="voice-row">
+      <label class="voice-toggle"><input data-role="voice" type="checkbox"><span>Voz grave</span></label>
+      <button class="mini-button" data-action="listen" type="button">MIC</button>
+      <button class="mini-button" data-action="repeat" type="button">RPT</button>
+      <button class="mini-button danger" data-action="stop" type="button">STOP</button>
+      <button class="mini-button" data-action="clear" type="button">CLR</button>
+    </div>`;
+  if (widget.type === "metrics") return `
+    <div class="metric-grid">
+      <article class="metric"><span>CPU</span><strong data-role="cpu">--</strong><small data-role="temp">Temp --</small></article>
+      <article class="metric"><span>RAM</span><strong data-role="ram">--</strong><small>Presion de memoria</small></article>
+      <article class="metric"><span>Disco</span><strong data-role="disk">--</strong><small>Volumen raiz</small></article>
+      <article class="metric"><span>Perimetro</span><strong data-role="threat">--</strong><small data-role="threat-detail">Sin escaneo</small></article>
+    </div>
+    <div class="list" data-role="containers"></div>`;
+  if (widget.type === "config") return `
+    <div class="stack">
+      <section class="holo-block">
+        <h3>OpenAI Codex</h3>
+        <button class="primary-button" data-action="codex-login" type="button">Iniciar sesion con OpenAI</button>
+        <div class="login-code" data-role="codex-box" hidden>
+          <a data-role="codex-url" href="#" target="_blank" rel="noopener">Abrir login</a>
+          <strong data-role="codex-code">----</strong>
+          <span data-role="codex-status">Esperando autorizacion.</span>
+        </div>
+      </section>
+      <section class="holo-block">
+        <h3>Google Gemini Fallback</h3>
+        <form class="settings-form" data-role="google-form">
+          <input data-role="google-key" type="password" autocomplete="off" placeholder="GOOGLE_API_KEY">
+          <input data-role="google-model" autocomplete="off" placeholder="gemini-2.5-flash-lite">
+          <button class="mini-button" type="submit">Guardar</button>
+        </form>
+        <button class="mini-button wide" data-action="test-google" type="button">Probar Gemini</button>
+      </section>
+      <section class="holo-block">
+        <h3>Google OAuth2</h3>
+        <p class="muted" data-role="google-oauth-status">Consultando estado.</p>
+        <a class="primary-link" href="/oauth/google/start" target="_blank" rel="noopener">Conectar Google OAuth</a>
+      </section>
+      <pre class="output" data-role="brain-output"></pre>
+    </div>`;
+  if (widget.type === "logs") return `
+    <div class="section-head"><h3>Memoria Operativa</h3><button class="mini-button" data-action="reload-incidents" type="button">Revisar</button></div>
+    <div class="list" data-role="incidents"></div>
+    <div class="section-head"><h3>Capacidades</h3></div>
+    <div class="list" data-role="capabilities"></div>`;
+  if (widget.type === "assets") return `
+    <div class="section-head"><h3>Assets Conectados</h3><button class="mini-button" data-action="load-bridge" type="button">Puente</button></div>
+    <div class="list" data-role="assets"></div>
+    <div class="control-grid">
+      <input data-role="asset-id" value="main-pc" aria-label="Asset id">
+      <select data-role="asset-action" aria-label="Accion">
+        <option value="ping">Ping</option><option value="process_audit">Auditar procesos</option><option value="launch">Abrir app</option><option value="lock">Bloquear</option><option value="sleep">Suspender</option>
+      </select>
+      <input data-role="asset-app" placeholder="Clave de app">
+      <button class="mini-button" data-action="asset-command" type="button">Ejecutar</button>
+    </div>
+    <pre class="output" data-role="asset-output"></pre>`;
+  return `
+    <div class="dynamic-widget">
+      <p class="muted">Solicitud original</p>
+      <strong>${escapeHtml(widget.prompt || "Widget operativo")}</strong>
+      <div class="telemetry-lines">
+        <span>STREAM: conectado al bus local</span>
+        <span>RENDER: tarjeta generada en canvas</span>
+        <span>UPDATE: esperando endpoint especifico</span>
+      </div>
+    </div>`;
+}
+
+function bindWidget(widget) {
+  const element = widget.element;
+  element.querySelector("[data-drag-handle]").addEventListener("pointerdown", (event) => {
+    state.drag = { id: widget.id, mode: "move", x: event.clientX, y: event.clientY, ox: widget.x, oy: widget.y };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  });
+  element.querySelector("[data-resize-handle]").addEventListener("pointerdown", (event) => {
+    state.drag = { id: widget.id, mode: "resize", x: event.clientX, y: event.clientY, ow: widget.w, oh: widget.h };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  });
+  element.addEventListener("click", (event) => {
+    const action = event.target.closest("[data-action]")?.dataset.action;
+    if (!action) return;
+    handleWidgetAction(widget, action);
+  });
+  const chatForm = element.querySelector("[data-role='chat-form']");
+  if (chatForm) {
+    chatForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const input = element.querySelector("[data-role='prompt']");
+      const message = input.value.trim();
+      if (!message) return;
+      input.value = "";
+      sendChatFromWidget(widget, message);
     });
+  }
+  const googleForm = element.querySelector("[data-role='google-form']");
+  if (googleForm) googleForm.addEventListener("submit", (event) => saveGoogleSettings(event, widget));
+}
+
+async function handleWidgetAction(widget, action) {
+  if (action === "close") return closeWidget(widget);
+  if (action === "refresh") return loadWidgetData(widget);
+  if (action === "listen") return toggleDictation(widget);
+  if (action === "repeat") return speak(widget, state.lastAssistantText, true);
+  if (action === "stop") return stopVoice();
+  if (action === "clear") {
+    stopVoice();
+    const transcript = widget.element.querySelector("[data-role='transcript']");
+    if (transcript) transcript.innerHTML = "";
+    return;
+  }
+  if (action === "codex-login") return startCodexLogin(widget);
+  if (action === "test-google") return testGoogleSettings(widget);
+  if (action === "reload-incidents") return loadStatus();
+  if (action === "load-bridge") return loadBridgeConfig(widget);
+  if (action === "asset-command") return sendAssetCommand(widget);
+}
+
+function closeWidget(widget) {
+  widget.element.remove();
+  state.widgets = state.widgets.filter((item) => item.id !== widget.id);
+}
+
+function focusOrCreate(type) {
+  const widget = state.widgets.find((item) => item.type === type) || addWidget(type);
+  widget.element.classList.add("focused");
+  setTimeout(() => widget.element.classList.remove("focused"), 850);
+  state.view.x = $("canvasViewport").clientWidth / 2 - (widget.x + widget.w / 2) * state.view.scale;
+  state.view.y = $("canvasViewport").clientHeight / 2 - (widget.y + widget.h / 2) * state.view.scale;
+  scheduleWorldTransform();
+  const input = widget.element.querySelector("[data-role='prompt']");
+  if (input) setTimeout(() => input.focus(), 180);
+}
+
+function pulseCore() {
+  $("arcApp").classList.add("core-fired");
+  setTimeout(() => $("arcApp").classList.remove("core-fired"), 900);
+}
+
+async function sendChatFromWidget(widget, message) {
+  appendMessage(widget, "user", message);
+  const assistant = appendMessage(widget, "assistant", "Pensando.");
+  try {
     assistant.textContent = "";
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      assistant.textContent += decoder.decode(value, { stream: true });
-      scrollTranscript();
+    let streamed = false;
+    if ("EventSource" in window) {
+      streamed = await streamWithSse(message, (chunk) => {
+        assistant.textContent += chunk;
+        scrollTranscript(widget);
+      });
+    }
+    if (!streamed) {
+      await streamWithFetch(message, (chunk) => {
+        assistant.textContent += chunk;
+        scrollTranscript(widget);
+      });
     }
     state.lastAssistantText = cleanAssistantText(assistant.textContent);
     assistant.textContent = state.lastAssistantText || "Sin respuesta.";
-    if ($("voiceToggle").checked) speak(state.lastAssistantText, false);
+    speak(widget, state.lastAssistantText, false);
   } catch (error) {
     assistant.textContent = `Fallo de enlace: ${error.message}`;
   }
 }
 
+function streamWithSse(message, onChunk) {
+  return new Promise((resolve) => {
+    const source = new EventSource(`/chat/stream?message=${encodeURIComponent(message)}`);
+    let received = false;
+    source.onmessage = (event) => {
+      received = true;
+      const data = JSON.parse(event.data);
+      onChunk(data.chunk || "");
+    };
+    source.addEventListener("done", () => {
+      source.close();
+      resolve(received);
+    });
+    source.onerror = () => {
+      source.close();
+      resolve(received);
+    };
+  });
+}
+
+async function streamWithFetch(message, onChunk) {
+  const response = await fetch("/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message })
+  });
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    onChunk(decoder.decode(value, { stream: true }));
+  }
+}
+
+function appendMessage(widget, role, content) {
+  const transcript = widget.element.querySelector("[data-role='transcript']");
+  const node = document.createElement("div");
+  node.className = `message ${role}`;
+  node.textContent = content;
+  transcript.appendChild(node);
+  scrollTranscript(widget);
+  return node;
+}
+
+function scrollTranscript(widget) {
+  const transcript = widget.element.querySelector("[data-role='transcript']");
+  if (transcript) transcript.scrollTop = transcript.scrollHeight;
+}
+
 async function refreshAll() {
-  await Promise.allSettled([loadStatus(), loadAssets()]);
+  await Promise.allSettled([loadStatus(), loadAssets(), loadGoogleOAuthStatus()]);
+}
+
+async function loadWidgetData(widget) {
+  if (widget.type === "metrics" || widget.type === "logs" || widget.type === "config") await loadStatus();
+  if (widget.type === "assets") await loadAssets();
+  if (widget.type === "config") await loadGoogleOAuthStatus();
 }
 
 async function loadStatus() {
   const data = await getJson("/status");
-  const context = data.context;
-  const vitals = context.vitals;
-  const threats = context.threats;
-  const docker = context.docker;
-  const brain = data.brain;
-  const primary = brain.primary || {};
-  const fallback = brain.fallback || {};
-  const primaryReady = primary.state === "ready";
-  const fallbackReady = fallback.state === "ready";
+  const context = data.context || {};
+  const vitals = context.vitals || {};
+  const threats = context.threats || {};
+  const docker = context.docker || {};
+  const primary = data.brain?.primary || {};
+  const fallback = data.brain?.fallback || {};
+  $("brainState").textContent = primary.state === "ready" ? "CODEX ONLINE" : fallback.state === "ready" ? "GEMINI ONLINE" : "AUTH REQUIRED";
 
-  $("brainState").textContent = primaryReady ? "CODEX ONLINE" : fallbackReady ? "GEMINI ONLINE" : "AUTH REQUIRED";
-  $("briefingTitle").textContent = vitals.status === "Nominal" ? "Sistemas nominales." : vitals.status;
-  $("briefingText").textContent = `Codex: ${primary.state || "needs_auth"}. Google: ${fallback.state || "needs_key"}. ${vitals.notes.join(" ")}`;
-  $("cpuMetric").textContent = percent(vitals.cpu_percent);
-  $("ramMetric").textContent = percent(vitals.ram_percent);
-  $("diskMetric").textContent = percent(vitals.disk_percent);
-  $("tempMetric").textContent = vitals.cpu_temperature_c === null ? "Temperatura no disponible" : `${vitals.cpu_temperature_c.toFixed(1)}C`;
-  $("threatMetric").textContent = threats.status;
-  $("threatSummary").textContent = threats.anomalies.length ? `${threats.anomalies.length} eventos` : threats.summary;
+  state.widgets.filter((widget) => widget.type === "metrics").forEach((widget) => {
+    setText(widget, "cpu", percent(vitals.cpu_percent));
+    setText(widget, "ram", percent(vitals.ram_percent));
+    setText(widget, "disk", percent(vitals.disk_percent));
+    setText(widget, "temp", vitals.cpu_temperature_c === null ? "Temp no disponible" : `${Number(vitals.cpu_temperature_c).toFixed(1)} C`);
+    setText(widget, "threat", threats.status || "--");
+    setText(widget, "threat-detail", threats.summary || "Sin escaneo");
+    const containers = widget.element.querySelector("[data-role='containers']");
+    if (containers) containers.innerHTML = renderContainers(docker);
+  });
 
-  renderContainers(docker);
-  renderIncidents(context.recent_incidents);
-  $("capabilityList").innerHTML = data.capabilities.map((item) => row(item.name, JSON.stringify(item.arguments), "")).join("");
-  $("brainOutput").textContent = JSON.stringify(brain, null, 2);
+  state.widgets.filter((widget) => widget.type === "logs").forEach((widget) => {
+    const incidents = widget.element.querySelector("[data-role='incidents']");
+    const capabilities = widget.element.querySelector("[data-role='capabilities']");
+    if (incidents) incidents.innerHTML = (context.recent_incidents || []).map((item) => row(item.summary, `${item.category} - ${item.created_at}`, "warning")).join("") || row("Sin incidentes", "Memoria limpia", "");
+    if (capabilities) capabilities.innerHTML = (data.capabilities || []).map((item) => row(item.name, JSON.stringify(item.arguments), "")).join("");
+  });
+
+  state.widgets.filter((widget) => widget.type === "config").forEach((widget) => {
+    setRoleText(widget, "brain-output", JSON.stringify(data.brain, null, 2));
+  });
 }
 
-async function saveGoogleSettings(event) {
+async function saveGoogleSettings(event, widget) {
   event.preventDefault();
-  const apiKey = $("googleKey").value.trim();
-  const model = $("googleModel").value.trim();
-  if (!apiKey) {
-    $("brainOutput").textContent = "Introduce una GOOGLE_API_KEY.";
-    return;
-  }
-  $("brainOutput").textContent = "Guardando fallback Google.";
+  const apiKey = widget.element.querySelector("[data-role='google-key']").value.trim();
+  const model = widget.element.querySelector("[data-role='google-model']").value.trim();
+  if (!apiKey) return setRoleText(widget, "brain-output", "Introduce una GOOGLE_API_KEY.");
+  setRoleText(widget, "brain-output", "Guardando fallback Google.");
   try {
     const data = await getJson("/settings/google", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ api_key: apiKey, model: model || null })
     });
-    $("googleKey").value = "";
-    $("brainOutput").textContent = JSON.stringify(data.brain, null, 2);
-    await loadStatus();
-    await testGoogleSettings();
+    widget.element.querySelector("[data-role='google-key']").value = "";
+    setRoleText(widget, "brain-output", JSON.stringify(data.brain, null, 2));
+    await testGoogleSettings(widget);
   } catch (error) {
-    $("brainOutput").textContent = error.message;
+    setRoleText(widget, "brain-output", error.message);
   }
 }
 
-async function testGoogleSettings() {
-  $("brainOutput").textContent = "Probando Google Gemini.";
+async function testGoogleSettings(widget) {
+  setRoleText(widget, "brain-output", "Probando Google Gemini.");
   try {
-    const data = await getJson("/settings/google/test", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" }
-    });
-    $("brainOutput").textContent = `${data.ok ? "Google Gemini operativo." : "Google Gemini no respondio."}\n\n${data.response}\n\n${JSON.stringify(data.brain, null, 2)}`;
+    const data = await getJson("/settings/google/test", { method: "POST", headers: { "Content-Type": "application/json" } });
+    setRoleText(widget, "brain-output", `${data.ok ? "Google Gemini operativo." : "Google Gemini no respondio."}\n\n${data.response}`);
     await loadStatus();
   } catch (error) {
-    $("brainOutput").textContent = error.message;
+    setRoleText(widget, "brain-output", error.message);
   }
 }
 
-async function startCodexLogin() {
-  $("codexLoginBox").hidden = false;
-  $("codexLoginStatus").textContent = "Generando codigo de OpenAI.";
-  $("brainOutput").textContent = "Iniciando sesion con Codex.";
+async function loadGoogleOAuthStatus() {
   try {
-    const data = await getJson("/settings/codex-login/start", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" }
+    const data = await getJson("/settings/google/oauth/status");
+    state.widgets.filter((widget) => widget.type === "config").forEach((widget) => {
+      setRoleText(widget, "google-oauth-status", `${data.connected ? "Conectado" : "Sin conectar"} - ${data.detail} Redirect: ${data.redirect_uri}`);
     });
-    renderCodexLogin(data.login);
+  } catch {
+    state.widgets.filter((widget) => widget.type === "config").forEach((widget) => setRoleText(widget, "google-oauth-status", "OAuth no disponible."));
+  }
+}
+
+async function startCodexLogin(widget) {
+  const box = widget.element.querySelector("[data-role='codex-box']");
+  box.hidden = false;
+  setRoleText(widget, "codex-status", "Generando codigo de OpenAI.");
+  try {
+    const data = await getJson("/settings/codex-login/start", { method: "POST", headers: { "Content-Type": "application/json" } });
+    renderCodexLogin(widget, data.login);
     if (state.codexLoginTimer) clearInterval(state.codexLoginTimer);
-    if (data.login.state !== "connected") state.codexLoginTimer = setInterval(pollCodexLogin, 3000);
+    if (data.login.state !== "connected") state.codexLoginTimer = setInterval(() => pollCodexLogin(widget), 3000);
   } catch (error) {
-    $("codexLoginStatus").textContent = error.message;
-    $("brainOutput").textContent = error.message;
+    setRoleText(widget, "codex-status", error.message);
   }
 }
 
-async function pollCodexLogin() {
+async function pollCodexLogin(widget) {
   try {
     const data = await getJson("/settings/codex-login/status");
-    renderCodexLogin(data.login);
+    renderCodexLogin(widget, data.login);
     if (["connected", "failed", "expired"].includes(data.login.state)) {
       clearInterval(state.codexLoginTimer);
       state.codexLoginTimer = null;
       await loadStatus();
     }
   } catch (error) {
-    $("codexLoginStatus").textContent = error.message;
+    setRoleText(widget, "codex-status", error.message);
   }
 }
 
-function renderCodexLogin(login) {
-  $("codexLoginBox").hidden = false;
+function renderCodexLogin(widget, login) {
+  const box = widget.element.querySelector("[data-role='codex-box']");
+  box.hidden = false;
+  const url = widget.element.querySelector("[data-role='codex-url']");
   if (login.url) {
-    $("codexLoginUrl").href = login.url;
-    $("codexLoginUrl").textContent = login.url;
+    url.href = login.url;
+    url.textContent = login.url;
   }
-  if (login.code) $("codexLoginCode").textContent = login.code;
+  if (login.code) setRoleText(widget, "codex-code", login.code);
   const labels = {
     waiting_for_browser: "Abre OpenAI, introduce el codigo y autoriza Codex.",
     connected: "Codex conectado con tu cuenta de OpenAI.",
@@ -228,90 +518,45 @@ function renderCodexLogin(login) {
     expired: login.detail || "El codigo ha caducado.",
     idle: "Sin login activo."
   };
-  $("codexLoginStatus").textContent = labels[login.state] || login.state || "Esperando.";
-  $("brainOutput").textContent = JSON.stringify(login.brain || login, null, 2);
-}
-
-async function importCodexAuth(event) {
-  event.preventDefault();
-  const file = $("codexAuthFile").files[0];
-  if (!file) {
-    $("brainOutput").textContent = "Selecciona el auth.json de Codex.";
-    return;
-  }
-  $("brainOutput").textContent = "Importando auth.json de Codex.";
-  try {
-    const authJson = await file.text();
-    const data = await getJson("/settings/codex-auth", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ auth_json: authJson })
-    });
-    $("codexAuthFile").value = "";
-    $("brainOutput").textContent = JSON.stringify(data.brain, null, 2);
-    await loadStatus();
-  } catch (error) {
-    $("brainOutput").textContent = error.message;
-  }
-}
-
-async function loadDocker() {
-  const data = await getJson("/docker");
-  renderContainers(data);
-}
-
-function renderContainers(data) {
-  const target = $("containerList");
-  if (!data.available) {
-    target.innerHTML = row("Docker no disponible", data.error || "Socket no montado", "warning");
-    return;
-  }
-  target.innerHTML = data.containers.slice(0, 10).map((item) => {
-    const tone = item.status === "running" ? "" : "warning";
-    return row(item.name, `${item.status} - ${item.image}`, tone);
-  }).join("") || row("Sin contenedores", "Registro vacio", "warning");
-}
-
-function renderIncidents(items) {
-  const html = items.map((item) => row(item.summary, `${item.category} - ${item.created_at}`, item.severity === "warning" ? "warning" : "")).join("");
-  $("incidentList").innerHTML = html || row("Sin incidentes", "Memoria limpia", "");
+  setRoleText(widget, "codex-status", labels[login.state] || login.state || "Esperando.");
 }
 
 async function loadAssets() {
   const data = await getJson("/assets");
-  $("assetList").innerHTML = data.map((item) => row(item.asset_id, `Conectado ${item.connected_at}`, "")).join("") || row("Sin assets", "Arranca el puente remoto", "warning");
+  state.widgets.filter((widget) => widget.type === "assets").forEach((widget) => {
+    const target = widget.element.querySelector("[data-role='assets']");
+    target.innerHTML = data.map((item) => row(item.asset_id, `Conectado ${item.connected_at}`, "")).join("") || row("Sin assets", "Arranca el puente remoto", "warning");
+  });
 }
 
-async function loadBridgeConfig() {
+async function loadBridgeConfig(widget) {
   const data = await getJson("/asset-bridge/config");
   const origin = window.location.origin.replace(/^http/, "ws");
-  $("bridgeCommand").textContent = `python asset_bridge.py --server ${origin}${data.websocket_path} --asset-id ${data.asset_id} --key "${data.bridge_key}"`;
+  setRoleText(widget, "asset-output", `python asset_bridge.py --server ${origin}${data.websocket_path} --asset-id ${data.asset_id} --key "${data.bridge_key}"`);
 }
 
-async function sendAssetCommand() {
-  const assetId = $("assetId").value.trim();
-  const action = $("assetAction").value;
-  const payload = action === "launch" ? { app: $("assetApp").value.trim() } : {};
-  $("assetOutput").textContent = "Enviando.";
+async function sendAssetCommand(widget) {
+  const assetId = widget.element.querySelector("[data-role='asset-id']").value.trim();
+  const action = widget.element.querySelector("[data-role='asset-action']").value;
+  const app = widget.element.querySelector("[data-role='asset-app']").value.trim();
+  const payload = action === "launch" ? { app } : {};
+  setRoleText(widget, "asset-output", "Enviando.");
   try {
     const data = await getJson(`/assets/${encodeURIComponent(assetId)}/command`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action, payload })
     });
-    $("assetOutput").textContent = JSON.stringify(data, null, 2);
+    setRoleText(widget, "asset-output", JSON.stringify(data, null, 2));
     await loadAssets();
   } catch (error) {
-    $("assetOutput").textContent = error.message;
+    setRoleText(widget, "asset-output", error.message);
   }
 }
 
-function toggleDictation() {
+function toggleDictation(widget) {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) {
-    appendMessage("assistant", "Dictado no disponible en este navegador.");
-    return;
-  }
+  if (!SpeechRecognition) return appendMessage(widget, "assistant", "Dictado no disponible en este navegador.");
   if (state.listening && state.recognition) {
     state.recognition.stop();
     return;
@@ -322,45 +567,32 @@ function toggleDictation() {
   recognition.continuous = false;
   recognition.onstart = () => {
     state.listening = true;
-    $("listenVoice").classList.add("active-recording");
+    widget.element.classList.add("recording");
   };
   recognition.onend = () => {
     state.listening = false;
-    $("listenVoice").classList.remove("active-recording");
+    widget.element.classList.remove("recording");
   };
-  recognition.onresult = (event) => {
-    const text = event.results[0][0].transcript;
-    $("promptInput").value = text;
-    sendChat(text);
-  };
+  recognition.onresult = (event) => sendChatFromWidget(widget, event.results[0][0].transcript);
   state.recognition = recognition;
   recognition.start();
 }
 
-function appendMessage(role, content) {
-  const node = document.createElement("div");
-  node.className = `message ${role}`;
-  node.textContent = content;
-  $("transcript").appendChild(node);
-  scrollTranscript();
-  return node;
-}
-
-function scrollTranscript() {
-  $("transcript").scrollTop = $("transcript").scrollHeight;
-}
-
-function speak(text, force) {
+function speak(widget, text, force) {
   const cleanText = cleanAssistantText(text);
+  const enabled = widget?.element?.querySelector("[data-role='voice']")?.checked;
   if (!cleanText || !("speechSynthesis" in window)) return;
-  if (!force && !$("voiceToggle").checked) return;
+  if (!force && !enabled) return;
   stopVoice();
   const utterance = new SpeechSynthesisUtterance(cleanText);
   utterance.lang = /[áéíóúñ¿¡]/i.test(cleanText) ? "es-ES" : "en-GB";
-  utterance.rate = 1;
-  utterance.pitch = 0.92;
+  utterance.rate = 0.88;
+  utterance.pitch = 0.62;
   const voices = window.speechSynthesis.getVoices();
-  const preferred = voices.find((voice) => voice.lang === utterance.lang) || voices.find((voice) => voice.lang.startsWith(utterance.lang.slice(0, 2)));
+  const preferredNames = ["google uk english male", "microsoft george", "microsoft david", "daniel", "thomas", "alex"];
+  const preferred = voices.find((voice) => preferredNames.some((name) => voice.name.toLowerCase().includes(name)))
+    || voices.find((voice) => voice.lang === utterance.lang)
+    || voices.find((voice) => voice.lang.startsWith(utterance.lang.slice(0, 2)));
   if (preferred) utterance.voice = preferred;
   window.speechSynthesis.speak(utterance);
 }
@@ -368,6 +600,79 @@ function speak(text, force) {
 function stopVoice() {
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
   if (state.recognition && state.listening) state.recognition.stop();
+}
+
+function scheduleWorldTransform() {
+  if (state.raf) return;
+  state.raf = requestAnimationFrame(() => {
+    state.raf = 0;
+    $("canvasWorld").style.transform = `translate3d(${state.view.x}px, ${state.view.y}px, 0) scale(${state.view.scale})`;
+  });
+}
+
+function scheduleWidgetTransform(widget) {
+  widget.element.style.width = `${widget.w}px`;
+  widget.element.style.height = `${widget.h}px`;
+  widget.element.style.transform = `translate3d(${widget.x}px, ${widget.y}px, 0)`;
+}
+
+function screenToWorld(x, y) {
+  const rect = $("canvasViewport").getBoundingClientRect();
+  return {
+    x: (x - rect.left - state.view.x) / state.view.scale,
+    y: (y - rect.top - state.view.y) / state.view.scale
+  };
+}
+
+function worldToScreen(x, y) {
+  const rect = $("canvasViewport").getBoundingClientRect();
+  return {
+    x: rect.left + state.view.x + x * state.view.scale,
+    y: rect.top + state.view.y + y * state.view.scale
+  };
+}
+
+function inferWidgetType(prompt) {
+  const text = prompt.toLowerCase();
+  if (/(chat|habla|pregunta|asistente|jarvis)/.test(text)) return "chat";
+  if (/(google|oauth|openai|codex|gemini|api|config)/.test(text)) return "config";
+  if (/(log|incidente|memoria|evento)/.test(text)) return "logs";
+  if (/(asset|remoto|pc|almacenamiento|storage|disco remoto)/.test(text)) return "assets";
+  if (/(cpu|ram|docker|red|network|trafico|tráfico|metrica|métrica)/.test(text)) return "metrics";
+  return "custom";
+}
+
+function titleFromPrompt(prompt, type) {
+  if (type !== "custom") return widgetDefaults[type].title;
+  const clean = prompt.replace(/[^\w\sáéíóúñ]/gi, "").trim();
+  return clean ? clean.slice(0, 34) : "Dynamic Widget";
+}
+
+function renderContainers(data) {
+  if (!data.available) return row("Docker no disponible", data.error || "Socket no montado", "warning");
+  return data.containers.slice(0, 8).map((item) => row(item.name, `${item.status} - ${item.image}`, item.status === "running" ? "" : "warning")).join("") || row("Sin contenedores", "Registro vacio", "warning");
+}
+
+function setText(widget, role, text) {
+  const node = widget.element.querySelector(`[data-role='${role}']`);
+  if (node) node.textContent = text;
+}
+
+function setRoleText(widget, role, text) {
+  setText(widget, role, text);
+}
+
+async function getJson(url, options) {
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    let detail = `${response.status} ${response.statusText}`;
+    try {
+      const payload = await response.json();
+      detail = payload.detail || detail;
+    } catch {}
+    throw new Error(detail);
+  }
+  return response.json();
 }
 
 function cleanAssistantText(text) {
@@ -378,23 +683,7 @@ function isTerminalNoise(line) {
   const lower = line.toLowerCase();
   if ([">", "$", "❯"].includes(line)) return true;
   if (/^[-_|+=~: .[\]()0-9]{12,}$/.test(line)) return true;
-  return ["gpt-", "msg=interrupt", "/queue", "/bg", "/steer", "ctrl+c", "tokens", "private telemetry", "current local telemetry"].some((fragment) => lower.includes(fragment));
-}
-
-function startCoordinateNoise() {
-  const matrices = document.querySelectorAll(".data-matrix span");
-  state.coordinateTimer = setInterval(() => {
-    matrices.forEach((item, index) => {
-      const seed = Math.floor(Math.random() * 4095).toString(16).toUpperCase().padStart(3, "0");
-      item.dataset.coord = ` // ${index}:${seed}`;
-    });
-  }, 1200);
-}
-
-async function getJson(url, options) {
-  const response = await fetch(url, options);
-  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-  return response.json();
+  return ["msg=interrupt", "/queue", "/bg", "/steer", "ctrl+c", "tokens", "private telemetry", "current local telemetry", "codex exec"].some((fragment) => lower.includes(fragment));
 }
 
 function percent(value) {
@@ -409,5 +698,12 @@ function escapeHtml(value) {
   return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
-openPanel("metrics");
-refreshAll();
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function toast(message) {
+  $("toast").textContent = message;
+  $("toast").classList.add("visible");
+  setTimeout(() => $("toast").classList.remove("visible"), 2600);
+}

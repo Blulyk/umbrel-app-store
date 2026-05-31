@@ -7,7 +7,7 @@ services:
       APP_PORT: 8080
 
   web:
-    image: ghcr.io/blulyk/alfred-umbrel:1.5.1
+    image: ghcr.io/blulyk/alfred-umbrel:1.6.0
     container_name: blulyk-alfred_web_1
     restart: on-failure
     stop_grace_period: 1m
@@ -26,6 +26,10 @@ services:
       JARVIS_CODEX_MODEL: "${JARVIS_CODEX_MODEL:-}"
       GOOGLE_API_KEY: "${GOOGLE_API_KEY:-}"
       JARVIS_GOOGLE_MODEL: "${JARVIS_GOOGLE_MODEL:-gemini-2.5-flash-lite}"
+      GOOGLE_OAUTH_CLIENT_ID: "${GOOGLE_OAUTH_CLIENT_ID:-}"
+      GOOGLE_OAUTH_CLIENT_SECRET: "${GOOGLE_OAUTH_CLIENT_SECRET:-}"
+      GOOGLE_OAUTH_REDIRECT_URI: "${GOOGLE_OAUTH_REDIRECT_URI:-http://127.0.0.1:8085/oauth2callback}"
+      GOOGLE_OAUTH_SCOPES: "${GOOGLE_OAUTH_SCOPES:-openid email profile}"
       ALFRED_DOCKER_CONTROL: "false"
       ALFRED_AUTH_LOG: "/host/var/log/auth.log"
       ALFRED_BRIDGE_SECRET: "${APP_SEED}"

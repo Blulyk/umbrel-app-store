@@ -3,229 +3,90 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>JARVIS ARC-HUD</title>
+  <title>JARVIS ARC-CANVAS</title>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-  <main class="arc-hud booting" id="arcHud">
+  <main class="arc-app booting" id="arcApp">
     <div class="grid-plane" aria-hidden="true"></div>
     <div class="schematic-noise" aria-hidden="true"></div>
     <div class="boot-veil" aria-hidden="true">
-      <span>J.A.R.V.I.S. ARC-HUD</span>
-      <strong>BOOT SEQUENCE</strong>
+      <span>J.A.R.V.I.S. ARC-CANVAS</span>
+      <strong>ORCHESTRATOR ONLINE</strong>
     </div>
 
-    <header class="hud-header">
+    <header class="topbar">
       <div>
-        <p class="eyebrow">Just A Rather Very Intelligent System</p>
-        <h1>ARC-HUD INTERFACE</h1>
+        <p class="eyebrow">Arc Canvas Orchestrator</p>
+        <h1>JARVIS</h1>
       </div>
-      <div class="header-actions">
+      <div class="topbar-actions">
         <span id="brainState" class="status-chip">Inicializando</span>
-        <button id="refreshAll" class="hud-icon-button" type="button" title="Actualizar" aria-label="Actualizar">SYNC</button>
+        <button id="resetView" class="hud-button" type="button">CENTRAR</button>
+        <button id="refreshAll" class="hud-button" type="button">SYNC</button>
       </div>
     </header>
 
-    <section class="hud-stage" aria-label="Interfaz central JARVIS">
-      <svg class="circuit-map" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-        <defs>
-          <filter id="cyanGlow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="2.6" result="blur"></feGaussianBlur>
-            <feMerge>
-              <feMergeNode in="blur"></feMergeNode>
-              <feMergeNode in="SourceGraphic"></feMergeNode>
-            </feMerge>
-          </filter>
-          <linearGradient id="traceGradient" x1="0" x2="1" y1="0" y2="0">
-            <stop offset="0" stop-color="#00a8ff" stop-opacity=".2"></stop>
-            <stop offset=".5" stop-color="#00f0ff" stop-opacity="1"></stop>
-            <stop offset="1" stop-color="#00ebd4" stop-opacity=".45"></stop>
-          </linearGradient>
-        </defs>
-
-        <g class="map-lines" filter="url(#cyanGlow)">
-          <path class="draw-line route route-config" d="M800 450 L750 390 L605 335 L560 270 L412 270 L388 242 L238 242"></path>
-          <path class="draw-line route route-metrics" d="M800 450 L878 342 L1040 302 L1080 250 L1210 250 L1252 214 L1430 214"></path>
-          <path class="draw-line route route-logs" d="M800 450 L704 536 L570 580 L520 636 L365 636 L335 670 L150 670"></path>
-          <path class="draw-line route route-overrides" d="M800 450 L908 526 L1042 546 L1088 606 L1272 606 L1315 648 L1510 648"></path>
-          <path class="draw-line route route-assets" d="M800 450 L796 620 L720 698 L590 698 L546 745 L390 745"></path>
-          <path class="draw-line route route-comms" d="M800 450 L798 280 L862 218 L986 218 L1020 182 L1180 182"></path>
-
-          <path class="trace trace-a" d="M800 450 L750 390 L605 335 L560 270 L412 270 L388 242 L238 242"></path>
-          <path class="trace trace-b" d="M800 450 L878 342 L1040 302 L1080 250 L1210 250 L1252 214 L1430 214"></path>
-          <path class="trace trace-c" d="M800 450 L704 536 L570 580 L520 636 L365 636 L335 670 L150 670"></path>
-          <path class="trace trace-d" d="M800 450 L908 526 L1042 546 L1088 606 L1272 606 L1315 648 L1510 648"></path>
-        </g>
-
-        <g class="map-terminals" filter="url(#cyanGlow)">
-          <rect class="draw-terminal" x="120" y="650" width="190" height="42"></rect>
-          <rect class="draw-terminal" x="210" y="222" width="190" height="42"></rect>
-          <rect class="draw-terminal" x="1418" y="194" width="116" height="42"></rect>
-          <rect class="draw-terminal" x="1320" y="628" width="180" height="42"></rect>
-          <rect class="draw-terminal" x="363" y="725" width="172" height="42"></rect>
-          <rect class="draw-terminal" x="1168" y="162" width="172" height="42"></rect>
-          <circle class="junction" cx="605" cy="335" r="7"></circle>
-          <circle class="junction" cx="1040" cy="302" r="7"></circle>
-          <circle class="junction" cx="570" cy="580" r="7"></circle>
-          <circle class="junction" cx="1042" cy="546" r="7"></circle>
-          <circle class="junction" cx="720" cy="698" r="7"></circle>
-          <circle class="junction" cx="862" cy="218" r="7"></circle>
-        </g>
-      </svg>
-
-      <nav class="node-layer" aria-label="Nodos de sistema">
-        <button class="node-button node-config" data-panel="config" type="button">
-          <span>CONFIGURATION</span><small>OpenAI / Gemini</small>
-        </button>
-        <button class="node-button node-metrics" data-panel="metrics" type="button">
-          <span>CORE METRICS</span><small>Umbrel telemetry</small>
-        </button>
-        <button class="node-button node-logs" data-panel="logs" type="button">
-          <span>LOGS</span><small>Incidents</small>
-        </button>
-        <button class="node-button node-overrides" data-panel="overrides" type="button">
-          <span>OVERRIDES</span><small>Remote assets</small>
-        </button>
-      </nav>
-
-      <button id="coreButton" class="arc-core" type="button" aria-label="Initialize Chat">
-        <svg viewBox="0 0 300 300" aria-hidden="true">
-          <circle class="core-ring ring-outer" cx="150" cy="150" r="132"></circle>
-          <circle class="core-ring ring-mid" cx="150" cy="150" r="105"></circle>
-          <circle class="core-ring ring-inner" cx="150" cy="150" r="72"></circle>
-          <circle class="core-disc" cx="150" cy="150" r="50"></circle>
-          <g class="core-ticks">
-            <path d="M150 28 V50"></path><path d="M150 250 V272"></path><path d="M28 150 H50"></path><path d="M250 150 H272"></path>
-            <path d="M63 63 L78 78"></path><path d="M222 222 L237 237"></path><path d="M237 63 L222 78"></path><path d="M78 222 L63 237"></path>
+    <section id="canvasViewport" class="canvas-viewport" aria-label="Tablero infinito JARVIS">
+      <div id="canvasWorld" class="canvas-world">
+        <svg class="circuit-map" viewBox="-1200 -800 2400 1600" aria-hidden="true">
+          <defs>
+            <filter id="cyanGlow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="2.4" result="blur"></feGaussianBlur>
+              <feMerge><feMergeNode in="blur"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge>
+            </filter>
+            <linearGradient id="traceGradient" x1="0" x2="1" y1="0" y2="0">
+              <stop offset="0" stop-color="#00a8ff" stop-opacity=".2"></stop>
+              <stop offset=".52" stop-color="#00f0ff" stop-opacity="1"></stop>
+              <stop offset="1" stop-color="#00ebd4" stop-opacity=".55"></stop>
+            </linearGradient>
+          </defs>
+          <g filter="url(#cyanGlow)">
+            <path class="draw-line" d="M0 0 L-110 -90 L-305 -145 L-385 -235 L-650 -235 L-720 -300 L-970 -300"></path>
+            <path class="draw-line delay-1" d="M0 0 L170 -125 L405 -160 L520 -250 L795 -250 L875 -330 L1100 -330"></path>
+            <path class="draw-line delay-2" d="M0 0 L-185 145 L-390 210 L-505 330 L-790 330 L-865 405 L-1100 405"></path>
+            <path class="draw-line delay-3" d="M0 0 L210 150 L425 185 L535 305 L825 305 L915 390 L1120 390"></path>
+            <path class="draw-line delay-4" d="M0 0 L10 290 L-115 410 L-370 410 L-455 505 L-705 505"></path>
+            <path class="draw-line delay-5" d="M0 0 L0 -315 L135 -435 L380 -435 L460 -515 L720 -515"></path>
+            <path class="trace trace-a" d="M0 0 L-110 -90 L-305 -145 L-385 -235 L-650 -235 L-720 -300 L-970 -300"></path>
+            <path class="trace trace-b" d="M0 0 L170 -125 L405 -160 L520 -250 L795 -250 L875 -330 L1100 -330"></path>
+            <path class="trace trace-c" d="M0 0 L-185 145 L-390 210 L-505 330 L-790 330 L-865 405 L-1100 405"></path>
+            <path class="trace trace-d" d="M0 0 L210 150 L425 185 L535 305 L825 305 L915 390 L1120 390"></path>
           </g>
         </svg>
-        <span>INITIALIZE CHAT</span>
-      </button>
 
-      <section class="hud-readout">
-        <p class="eyebrow">Cortex</p>
-        <h2 id="briefingTitle">Esperando telemetria.</h2>
-        <p id="briefingText">Faint grid lock. Vector paths charging. Core awaiting command.</p>
-      </section>
+        <button id="coreButton" class="arc-core" type="button" aria-label="Inicializar chat">
+          <svg viewBox="0 0 300 300" aria-hidden="true">
+            <circle class="core-ring ring-outer" cx="150" cy="150" r="132"></circle>
+            <circle class="core-ring ring-mid" cx="150" cy="150" r="105"></circle>
+            <circle class="core-ring ring-inner" cx="150" cy="150" r="72"></circle>
+            <circle class="core-disc" cx="150" cy="150" r="50"></circle>
+            <g class="core-ticks">
+              <path d="M150 28 V50"></path><path d="M150 250 V272"></path><path d="M28 150 H50"></path><path d="M250 150 H272"></path>
+              <path d="M63 63 L78 78"></path><path d="M222 222 L237 237"></path><path d="M237 63 L222 78"></path><path d="M78 222 L63 237"></path>
+            </g>
+          </svg>
+          <span>INITIALIZE</span>
+        </button>
 
-      <div class="data-matrix matrix-left" aria-hidden="true">
-        <span>SYS: 0xA17F</span><span>VECTOR: LIVE</span><span>TRACE: 60FPS</span><span>ION: STABLE</span>
-      </div>
-      <div class="data-matrix matrix-right" aria-hidden="true">
-        <span>HARMONIC FIELD</span><span>NODE SYNC</span><span>AUTH CHECK</span><span>MEMORY BUS</span>
+        <div id="widgetLayer" class="widget-layer"></div>
       </div>
     </section>
 
-    <aside id="sidePanel" class="side-panel" aria-live="polite">
-      <div class="panel-head">
-        <div>
-          <p class="eyebrow" id="panelEyebrow">NODE</p>
-          <h3 id="panelTitle">Configuration</h3>
-        </div>
-        <button id="closePanel" class="hud-icon-button" type="button" aria-label="Cerrar panel">CLOSE</button>
-      </div>
+    <form id="commandBar" class="command-bar">
+      <input id="widgetCommandInput" autocomplete="off" placeholder="Ordena un widget: monitor de red, almacenamiento remoto, logs, configuracion, chat...">
+      <button class="send-button" type="submit">GENERAR</button>
+    </form>
 
-      <section id="panel-config" class="panel-view active-panel">
-        <div class="holo-block">
-          <h4>OpenAI Codex</h4>
-          <button id="startCodexLogin" class="primary-button" type="button">Iniciar sesion con OpenAI</button>
-          <div id="codexLoginBox" class="login-code" hidden>
-            <small>Abre el enlace y escribe el codigo.</small>
-            <a id="codexLoginUrl" href="#" target="_blank" rel="noopener">Abrir login de OpenAI</a>
-            <strong id="codexLoginCode">----</strong>
-            <span id="codexLoginStatus">Esperando autorizacion.</span>
-          </div>
-          <form id="codexAuthForm" class="settings-form legacy-auth">
-            <input id="codexAuthFile" type="file" accept=".json,application/json" aria-label="Importar auth.json">
-            <button class="text-button" type="submit">Importar</button>
-          </form>
-        </div>
-        <div class="holo-block">
-          <h4>Google Gemini Fallback</h4>
-          <form id="googleForm" class="settings-form google-form">
-            <input id="googleKey" type="password" autocomplete="off" placeholder="GOOGLE_API_KEY">
-            <input id="googleModel" autocomplete="off" placeholder="gemini-2.5-flash-lite">
-            <button class="text-button" type="submit">Guardar</button>
-          </form>
-          <button id="testGoogle" class="text-button wide" type="button">Probar Gemini</button>
-        </div>
-        <pre id="brainOutput" class="output"></pre>
-      </section>
-
-      <section id="panel-metrics" class="panel-view">
-        <div class="metric-grid">
-          <article class="metric"><span>CPU</span><strong id="cpuMetric">--</strong><small id="tempMetric">Temperatura --</small></article>
-          <article class="metric"><span>Memoria</span><strong id="ramMetric">--</strong><small>Presion RAM</small></article>
-          <article class="metric"><span>Disco</span><strong id="diskMetric">--</strong><small>Volumen raiz</small></article>
-          <article class="metric"><span>Perimetro</span><strong id="threatMetric">--</strong><small id="threatSummary">Sin escaneo</small></article>
-        </div>
-        <div class="holo-block">
-          <div class="panel-head inline-head"><h4>Procesos Umbrel</h4><button id="reloadDocker" class="text-button">Inspeccionar</button></div>
-          <div id="containerList" class="list"></div>
-        </div>
-      </section>
-
-      <section id="panel-logs" class="panel-view">
-        <div class="panel-head inline-head"><h4>Memoria Operativa</h4><button id="reloadIncidents" class="text-button">Revisar</button></div>
-        <div id="incidentList" class="list"></div>
-        <div class="panel-head inline-head"><h4>Capacidades</h4><button id="reloadCapabilities" class="text-button">Actualizar</button></div>
-        <div id="capabilityList" class="list"></div>
-      </section>
-
-      <section id="panel-overrides" class="panel-view">
-        <div class="panel-head inline-head"><h4>Assets Conectados</h4><button id="reloadAssets" class="text-button">Escanear</button></div>
-        <div id="assetList" class="list"></div>
-        <div class="holo-block">
-          <h4>Accion Remota</h4>
-          <div class="control-grid">
-            <input id="assetId" value="main-pc" aria-label="Asset id">
-            <select id="assetAction" aria-label="Asset action">
-              <option value="ping">Ping</option>
-              <option value="process_audit">Auditar procesos</option>
-              <option value="launch">Abrir app</option>
-              <option value="lock">Bloquear</option>
-              <option value="sleep">Suspender</option>
-            </select>
-            <input id="assetApp" placeholder="Clave de app" aria-label="Clave de app">
-            <button id="sendAssetCommand" class="text-button">Ejecutar</button>
-          </div>
-          <pre id="assetOutput" class="output"></pre>
-        </div>
-        <div class="holo-block">
-          <div class="panel-head inline-head"><h4>Emparejamiento</h4><button id="loadBridge" class="text-button">Mostrar</button></div>
-          <pre id="bridgeCommand" class="output"></pre>
-        </div>
-      </section>
+    <aside class="dock">
+      <button class="dock-button" data-widget="chat" type="button">CHAT</button>
+      <button class="dock-button" data-widget="metrics" type="button">METRICAS</button>
+      <button class="dock-button" data-widget="config" type="button">CONFIG</button>
+      <button class="dock-button" data-widget="logs" type="button">LOGS</button>
+      <button class="dock-button" data-widget="assets" type="button">ASSETS</button>
     </aside>
 
-    <section id="chatOverlay" class="chat-overlay" aria-label="Chat JARVIS">
-      <div class="chat-shell">
-        <div class="terminal-head">
-          <div>
-            <p class="eyebrow">Conversational Core</p>
-            <h3>JARVIS CHAT</h3>
-          </div>
-          <div class="console-actions">
-            <label class="voice-toggle"><input id="voiceToggle" type="checkbox"><span>Voz</span></label>
-            <button id="listenVoice" class="hud-icon-button" title="Dictar" aria-label="Dictar">MIC</button>
-            <button id="repeatVoice" class="hud-icon-button" title="Repetir" aria-label="Repetir">RPT</button>
-            <button id="stopVoice" class="hud-icon-button stop-button" title="Parar voz" aria-label="Parar voz">STOP</button>
-            <button id="clearConsole" class="hud-icon-button" title="Limpiar" aria-label="Limpiar">CLR</button>
-            <button id="closeChat" class="hud-icon-button" type="button" aria-label="Cerrar chat">X</button>
-          </div>
-        </div>
-        <div id="transcript" class="transcript" aria-live="polite"></div>
-        <form id="chatForm" class="composer">
-          <input id="promptInput" autocomplete="off" placeholder="Pregunta, orden o llamada JSON">
-          <button type="submit" class="send-button" title="Ejecutar" aria-label="Ejecutar">SEND</button>
-        </form>
-      </div>
-    </section>
-
-    <form id="quickForm" class="quick-command">
-      <input id="quickInput" autocomplete="off" placeholder="Orden rapida para JARVIS">
-      <button class="send-button" title="Enviar" aria-label="Enviar">SEND</button>
-    </form>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
   </main>
   <script src="/static/app.js"></script>
 </body>
