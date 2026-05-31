@@ -134,12 +134,15 @@ class JarvisBrain:
                 "--ignore-rules",
                 "--sandbox",
                 "read-only",
-                "--model",
-                self.settings.codex_model,
                 "--output-last-message",
                 str(output_path),
                 "-",
             ]
+            if self.settings.codex_model:
+                command[command.index("--output-last-message"):command.index("--output-last-message")] = [
+                    "--model",
+                    self.settings.codex_model,
+                ]
             env = os.environ.copy()
             env["CODEX_HOME"] = self.settings.codex_home
             env.setdefault("HOME", "/data")
@@ -182,7 +185,7 @@ class JarvisBrain:
         return {
             "provider": "codex-chatgpt-oauth",
             "state": state,
-            "model": self.settings.codex_model,
+            "model": self.settings.codex_model or "chatgpt-plan-default",
             "binary": codex_bin,
             "detail": detail,
         }
@@ -395,7 +398,7 @@ def _codex_error_message(stderr: str) -> str:
     if "auth" in lower or "login" in lower:
         return "Codex necesita autenticacion. Importa el auth.json de Codex en /data/codex/auth.json."
     if "model" in lower:
-        return "Codex no pudo usar el modelo configurado. Revisa JARVIS_CODEX_MODEL."
+        return "Codex no pudo usar el modelo configurado. Deja JARVIS_CODEX_MODEL vacio para usar el modelo por defecto de tu plan ChatGPT."
     return "Codex no pudo devolver una respuesta final; uso Gemini si esta configurado."
 
 

@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     redis_url: str | None = Field(None, alias="ALFRED_REDIS_URL")
     codex_home: str = Field("/data/codex", alias="CODEX_HOME")
     codex_bin: str = Field("codex", alias="JARVIS_CODEX_BIN")
-    codex_model: str = Field("codex-mini-latest", alias="JARVIS_CODEX_MODEL")
+    codex_model: str = Field("", alias="JARVIS_CODEX_MODEL")
     codex_timeout_seconds: float = Field(70.0, alias="JARVIS_CODEX_TIMEOUT")
     google_api_key: str | None = Field(None, alias="GOOGLE_API_KEY")
     google_model: str = Field("gemini-2.5-flash-lite", alias="JARVIS_GOOGLE_MODEL")
