@@ -20,11 +20,16 @@ $("reloadIncidents").addEventListener("click", loadIncidents);
 $("reloadAssets").addEventListener("click", loadAssets);
 $("memoryRefresh").addEventListener("click", loadIncidents);
 $("clearConsole").addEventListener("click", () => {
+  stopVoice();
   state.transcript = [];
   state.lastAssistantText = "";
   renderTranscript();
 });
 $("repeatVoice").addEventListener("click", () => speak(state.lastAssistantText, true));
+$("stopVoice").addEventListener("click", stopVoice);
+$("voiceToggle").addEventListener("change", () => {
+  if (!$("voiceToggle").checked) stopVoice();
+});
 $("loadBridge").addEventListener("click", loadBridgeConfig);
 $("sendAssetCommand").addEventListener("click", sendAssetCommand);
 
@@ -51,7 +56,12 @@ $("chatForm").addEventListener("submit", async (event) => {
       assistant.textContent += decoder.decode(value, { stream: true });
       $("transcript").scrollTop = $("transcript").scrollHeight;
     }
-    state.lastAssistantText = assistant.textContent.trim();
+    state.lastAssistantText = cleanAssistantText(assistant.textContent);
+    assistant.textContent = state.lastAssistantText;
+    if (!state.lastAssistantText) {
+      assistant.remove();
+      return;
+    }
     if ($("voiceToggle").checked) speak(state.lastAssistantText, false);
   } catch (error) {
     assistant.textContent = `Console fault: ${error.message}`;
@@ -88,13 +98,13 @@ async function loadDocker() {
   }
   target.innerHTML = data.containers.slice(0, 8).map((item) => {
     const tone = item.status === "running" ? "" : "warning";
-    return row(item.name, `${item.status} · ${item.image}`, tone);
+    return row(item.name, `${item.status} - ${item.image}`, tone);
   }).join("") || row("No containers found", "The registry is oddly quiet.", "warning");
 }
 
 async function loadIncidents() {
   const data = await getJson("/memory/incidents");
-  const html = data.map((item) => row(item.summary, `${item.category} · ${item.created_at}`, item.severity === "warning" ? "warning" : "")).join("");
+  const html = data.map((item) => row(item.summary, `${item.category} - ${item.created_at}`, item.severity === "warning" ? "warning" : "")).join("");
   $("incidentList").innerHTML = html || row("No incidents recorded", "A rare luxury.", "");
   $("memoryList").innerHTML = html || row("No incidents recorded", "The ledger is clean.", "");
 }
@@ -143,17 +153,53 @@ function renderTranscript() {
 }
 
 function speak(text, force) {
-  if (!text || !("speechSynthesis" in window)) return;
+  const cleanText = cleanAssistantText(text);
+  if (!cleanText || !("speechSynthesis" in window)) return;
   if (!force && !$("voiceToggle").checked) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = /[áéíóúñ¿¡]/i.test(text) ? "es-ES" : "en-GB";
+  stopVoice();
+  const utterance = new SpeechSynthesisUtterance(cleanText);
+  utterance.lang = /[áéíóúñ¿¡]/i.test(cleanText) ? "es-ES" : "en-GB";
   utterance.rate = 0.98;
   utterance.pitch = 0.88;
   const voices = window.speechSynthesis.getVoices();
   const preferred = voices.find((voice) => voice.lang === utterance.lang) || voices.find((voice) => voice.lang.startsWith(utterance.lang.slice(0, 2)));
   if (preferred) utterance.voice = preferred;
   window.speechSynthesis.speak(utterance);
+}
+
+function stopVoice() {
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+}
+
+function cleanAssistantText(text) {
+  return String(text || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !isTerminalNoise(line))
+    .join("\n")
+    .trim();
+}
+
+function isTerminalNoise(line) {
+  const lower = line.toLowerCase();
+  if ([">", "$", "❯"].includes(line)) return true;
+  if (lower.includes("$ hermes")) return true;
+  if (/^[-_|+=~: .[\]()0-9]{12,}$/.test(line)) return true;
+  return [
+    "gpt-",
+    "msg=interrupt",
+    "/queue",
+    "/bg",
+    "/steer",
+    "ctrl+c",
+    "reflecting",
+    "tokens",
+    "alfred context follows",
+    "private telemetry",
+    "current local telemetry",
+    "context:",
+    "user request:"
+  ].some((fragment) => lower.includes(fragment));
 }
 
 async function getJson(url, options) {
@@ -171,7 +217,7 @@ function percent(value) {
 function row(title, detail, tone) {
   const escapedTitle = escapeHtml(title);
   const escapedDetail = escapeHtml(detail);
-  return `<div class="row ${tone || ""}"><div><strong>${escapedTitle}</strong><br><small>${escapedDetail}</small></div><span>●</span></div>`;
+  return `<div class="row ${tone || ""}"><div><strong>${escapedTitle}</strong><br><small>${escapedDetail}</small></div><span>*</span></div>`;
 }
 
 function escapeHtml(value) {

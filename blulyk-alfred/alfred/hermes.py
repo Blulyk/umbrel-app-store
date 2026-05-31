@@ -16,6 +16,8 @@ Begin directly with status, data, or analysis. Avoid generic assistant pleasantr
 Speak in clear Spanish when the user writes in Spanish. Never invent tool results."""
 
 ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)")
+TERMINAL_RULE_CHARS = set("-_|+=~: .[]()0123456789")
+PROMPT_MARKERS = (">", "$", "\u276f")
 
 
 class HermesClient:
@@ -32,7 +34,7 @@ class HermesClient:
                 yield chunk
             return
         except Exception:
-            async for chunk in self._stream_terminal_chat(user_message, tool_context):
+            async for chunk in self._stream_terminal_chat(user_message):
                 yield chunk
 
     async def _stream_openai_chat(
@@ -74,20 +76,18 @@ class HermesClient:
                     if content:
                         yield content
 
-    async def _stream_terminal_chat(
-        self, user_message: str, tool_context: dict[str, object]
-    ) -> AsyncIterator[str]:
-        ws_url = self._terminal_ws_url()
+    async def _stream_terminal_chat(self, user_message: str) -> AsyncIterator[str]:
         safe_message = " ".join(user_message.split())
-        async with websockets.connect(ws_url, open_timeout=10, close_timeout=2) as websocket:
+        if not safe_message:
+            return
+
+        async with websockets.connect(self._terminal_ws_url(), open_timeout=10, close_timeout=2) as websocket:
             await self._drain_initial_terminal(websocket)
             await websocket.send(json.dumps({"type": "input", "data": safe_message + "\n"}))
             response = await self._collect_terminal_response(websocket, safe_message)
 
         if response:
             yield response
-            return
-        yield "Hermes esta conectado, pero no devolvio respuesta legible desde la consola."
 
     def _terminal_ws_url(self) -> str:
         parsed = urlparse(self.base_url)
@@ -98,23 +98,25 @@ class HermesClient:
         return urlunparse((scheme, parsed.netloc, f"{path}/ws", "", "mode=chat", ""))
 
     async def _drain_initial_terminal(self, websocket: websockets.ClientConnection) -> None:
-        while True:
+        quiet_rounds = 0
+        while quiet_rounds < 4:
             try:
-                await asyncio.wait_for(websocket.recv(), timeout=0.2)
+                await asyncio.wait_for(websocket.recv(), timeout=0.25)
+                quiet_rounds = 0
             except TimeoutError:
-                return
+                quiet_rounds += 1
 
     async def _collect_terminal_response(self, websocket: websockets.ClientConnection, prompt: str) -> str:
         chunks: list[str] = []
         saw_output = False
         idle_rounds = 0
-        for _ in range(90):
+        for _ in range(100):
             try:
                 message = await asyncio.wait_for(websocket.recv(), timeout=0.5)
             except TimeoutError:
                 if saw_output:
                     idle_rounds += 1
-                    if idle_rounds >= 4:
+                    if idle_rounds >= 5:
                         break
                 continue
 
@@ -129,7 +131,9 @@ class HermesClient:
 
 
 def _clean_terminal_text(value: str) -> str:
-    return ANSI_RE.sub("", value).replace("\r", "")
+    clean = ANSI_RE.sub("", value).replace("\r", "")
+    clean = clean.replace("\u2500", "-").replace("\u2502", "|")
+    return clean
 
 
 def _extract_answer(raw: str, prompt: str) -> str:
@@ -137,11 +141,6 @@ def _extract_answer(raw: str, prompt: str) -> str:
     prompt_index = text.find(prompt)
     if prompt_index >= 0:
         text = text[prompt_index + len(prompt) :]
-    markers = ["Respond as ALFRED", "User request:", "ALFRED context follows."]
-    for marker in markers:
-        index = text.rfind(marker)
-        if index >= 0:
-            text = text[index + len(marker) :]
 
     lines = []
     for line in text.splitlines():
@@ -158,10 +157,13 @@ def _extract_answer(raw: str, prompt: str) -> str:
 
 def _is_terminal_noise(line: str) -> bool:
     lower = line.lower()
-    if line in {">", "$", "❯"}:
+    if line in PROMPT_MARKERS:
         return True
-    if line.startswith("─") or set(line) <= {"─", "│", "┌", "┐", "└", "┘", " "}:
+    if "$ hermes" in lower or lower in {"hermes", "- $ hermes", "-- $ hermes"}:
         return True
+    if _mostly_rule(line):
+        return True
+
     noise_fragments = [
         "gpt-",
         "msg=interrupt",
@@ -178,3 +180,12 @@ def _is_terminal_noise(line: str) -> bool:
         "user request:",
     ]
     return any(fragment in lower for fragment in noise_fragments)
+
+
+def _mostly_rule(line: str) -> bool:
+    if len(line) < 12:
+        return False
+    simple = "".join(char for char in line if ord(char) < 128)
+    if not simple:
+        return True
+    return sum(1 for char in simple if char in TERMINAL_RULE_CHARS) / len(simple) > 0.65

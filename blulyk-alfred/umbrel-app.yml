@@ -3,7 +3,7 @@ id: blulyk-alfred
 name: ALFRED
 tagline: Tactical local AI operations for Umbrel
 category: ai
-version: "0.1.3"
+version: "0.1.4"
 port: 8080
 path: ""
 icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-alfred/icon.svg
@@ -32,8 +32,7 @@ repo: https://github.com/Blulyk/umbrel-app-store
 support: https://github.com/Blulyk/umbrel-app-store/issues
 gallery: []
 releaseNotes: >-
-  Keeps the ALFRED console clean by sending only the user's message to Hermes
-  Agent over the terminal bridge and filtering terminal status output from the
-  displayed response.
+  Adds a voice stop control and hardens terminal-output filtering so ALFRED
+  only displays and speaks clean Hermes responses.
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store
