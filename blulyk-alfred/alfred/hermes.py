@@ -21,6 +21,8 @@ Speak in clear Spanish when the user writes in Spanish. Never invent tool result
 ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)")
 TERMINAL_RULE_CHARS = set("-_|+=~: .[]()0123456789")
 PROMPT_MARKERS = (">", "$", "\u276f")
+CURSOR_POSITION_REQUEST = "\x1b[6n"
+CURSOR_POSITION_RESPONSE = "\x1b[32;1R"
 HERMES_LIMIT_MESSAGE = "Hermes no puede responder ahora: limite de uso del proveedor alcanzado."
 HERMES_EMPTY_MESSAGE = "Hermes recibio la orden, pero no devolvio una respuesta final."
 TERMINAL_MODE = "alfred"
@@ -145,7 +147,8 @@ class HermesClient:
         quiet_rounds = 0
         while quiet_rounds < 4:
             try:
-                await asyncio.wait_for(websocket.recv(), timeout=0.25)
+                message = await asyncio.wait_for(websocket.recv(), timeout=0.25)
+                await self._answer_terminal_queries(websocket, message)
                 quiet_rounds = 0
             except TimeoutError:
                 quiet_rounds += 1
@@ -169,6 +172,7 @@ class HermesClient:
                 continue
 
             text = message.decode(errors="replace") if isinstance(message, bytes) else str(message)
+            await self._answer_terminal_queries(websocket, text)
             clean = _clean_terminal_text(text)
             if clean:
                 saw_output = True
@@ -176,6 +180,11 @@ class HermesClient:
                 chunks.append(clean)
 
         return _extract_answer("".join(chunks), prompt)
+
+    async def _answer_terminal_queries(self, websocket: websockets.ClientConnection, message: object) -> None:
+        text = message.decode(errors="replace") if isinstance(message, bytes) else str(message)
+        if CURSOR_POSITION_REQUEST in text:
+            await websocket.send(json.dumps({"type": "input", "data": CURSOR_POSITION_RESPONSE}))
 
     def _latest_message_id(self) -> int:
         db_path = self._state_db_path()
