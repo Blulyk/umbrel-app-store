@@ -80,6 +80,9 @@ function resetView() {
 }
 
 function onWheel(event) {
+  if (event.target.closest(".hud-widget, .dock, .command-bar, .topbar")) {
+    return;
+  }
   event.preventDefault();
   const before = screenToWorld(event.clientX, event.clientY);
   const delta = Math.sign(event.deltaY) * -0.08;
@@ -245,16 +248,20 @@ function widgetContent(widget) {
 function bindWidget(widget) {
   const element = widget.element;
   element.querySelector("[data-drag-handle]").addEventListener("pointerdown", (event) => {
+    if (event.target.closest("button, a, input, select, textarea, label")) return;
     state.drag = { id: widget.id, mode: "move", x: event.clientX, y: event.clientY, ox: widget.x, oy: widget.y };
     event.currentTarget.setPointerCapture(event.pointerId);
   });
   element.querySelector("[data-resize-handle]").addEventListener("pointerdown", (event) => {
+    event.stopPropagation();
     state.drag = { id: widget.id, mode: "resize", x: event.clientX, y: event.clientY, ow: widget.w, oh: widget.h };
     event.currentTarget.setPointerCapture(event.pointerId);
   });
   element.addEventListener("click", (event) => {
     const action = event.target.closest("[data-action]")?.dataset.action;
     if (!action) return;
+    event.preventDefault();
+    event.stopPropagation();
     handleWidgetAction(widget, action);
   });
   const chatForm = element.querySelector("[data-role='chat-form']");
@@ -611,9 +618,14 @@ function scheduleWorldTransform() {
 }
 
 function scheduleWidgetTransform(widget) {
-  widget.element.style.width = `${widget.w}px`;
-  widget.element.style.height = `${widget.h}px`;
-  widget.element.style.transform = `translate3d(${widget.x}px, ${widget.y}px, 0)`;
+  if (widget.framePending) return;
+  widget.framePending = true;
+  requestAnimationFrame(() => {
+    widget.framePending = false;
+    widget.element.style.width = `${widget.w}px`;
+    widget.element.style.height = `${widget.h}px`;
+    widget.element.style.transform = `translate3d(${widget.x}px, ${widget.y}px, 0)`;
+  });
 }
 
 function screenToWorld(x, y) {
