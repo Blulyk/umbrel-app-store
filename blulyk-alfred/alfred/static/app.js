@@ -1,34 +1,43 @@
 const state = {
+  activePanel: "config",
   lastAssistantText: "",
   recognition: null,
   listening: false,
-  codexLoginTimer: null
+  codexLoginTimer: null,
+  coordinateTimer: null
 };
 
 const $ = (id) => document.getElementById(id);
+const panelMeta = {
+  config: ["CONFIGURATION", "Brain Link"],
+  metrics: ["CORE METRICS", "Umbrel Telemetry"],
+  logs: ["LOGS", "Operational Memory"],
+  overrides: ["SYSTEM OVERRIDES", "Remote Assets"]
+};
 
-document.querySelectorAll(".rail-button").forEach((button) => {
-  button.addEventListener("click", () => {
-    document.querySelectorAll(".rail-button").forEach((item) => item.classList.remove("active"));
-    document.querySelectorAll(".view").forEach((view) => view.classList.remove("active-view"));
-    button.classList.add("active");
-    $(button.dataset.section).classList.add("active-view");
-  });
+window.addEventListener("load", () => {
+  setTimeout(() => $("arcHud").classList.remove("booting"), 2100);
+  startCoordinateNoise();
 });
 
+document.querySelectorAll(".node-button").forEach((button) => {
+  button.addEventListener("click", () => openPanel(button.dataset.panel));
+});
+
+$("coreButton").addEventListener("click", initializeChat);
+$("closeChat").addEventListener("click", () => $("chatOverlay").classList.remove("open"));
+$("closePanel").addEventListener("click", () => $("sidePanel").classList.remove("open"));
 $("refreshAll").addEventListener("click", refreshAll);
 $("reloadDocker").addEventListener("click", loadDocker);
 $("reloadIncidents").addEventListener("click", loadStatus);
 $("reloadAssets").addEventListener("click", loadAssets);
 $("reloadCapabilities").addEventListener("click", loadStatus);
-$("reloadBrain").addEventListener("click", loadStatus);
 $("loadBridge").addEventListener("click", loadBridgeConfig);
 $("sendAssetCommand").addEventListener("click", sendAssetCommand);
 $("googleForm").addEventListener("submit", saveGoogleSettings);
 $("testGoogle").addEventListener("click", testGoogleSettings);
 $("codexAuthForm").addEventListener("submit", importCodexAuth);
 $("startCodexLogin").addEventListener("click", startCodexLogin);
-$("openSystemsFromCore").addEventListener("click", () => document.querySelector('[data-section="systems"]').click());
 $("repeatVoice").addEventListener("click", () => speak(state.lastAssistantText, true));
 $("stopVoice").addEventListener("click", stopVoice);
 $("listenVoice").addEventListener("click", toggleDictation);
@@ -46,8 +55,8 @@ $("quickForm").addEventListener("submit", async (event) => {
   const value = $("quickInput").value.trim();
   if (!value) return;
   $("quickInput").value = "";
+  initializeChat();
   await sendChat(value);
-  document.querySelector('[data-section="console"]').click();
 });
 
 $("chatForm").addEventListener("submit", async (event) => {
@@ -58,6 +67,24 @@ $("chatForm").addEventListener("submit", async (event) => {
   input.value = "";
   await sendChat(message);
 });
+
+function initializeChat() {
+  $("arcHud").classList.add("core-fired");
+  $("chatOverlay").classList.add("open");
+  setTimeout(() => $("arcHud").classList.remove("core-fired"), 850);
+  setTimeout(() => $("promptInput").focus(), 220);
+}
+
+function openPanel(name) {
+  state.activePanel = name;
+  $("sidePanel").classList.add("open");
+  document.querySelectorAll(".panel-view").forEach((panel) => panel.classList.remove("active-panel"));
+  $(`panel-${name}`).classList.add("active-panel");
+  document.querySelectorAll(".node-button").forEach((button) => button.classList.toggle("active", button.dataset.panel === name));
+  const [title, eyebrow] = panelMeta[name] || panelMeta.config;
+  $("panelTitle").textContent = title;
+  $("panelEyebrow").textContent = eyebrow;
+}
 
 async function sendChat(message) {
   appendMessage("user", message);
@@ -96,17 +123,14 @@ async function loadStatus() {
   const threats = context.threats;
   const docker = context.docker;
   const brain = data.brain;
-
   const primary = brain.primary || {};
   const fallback = brain.fallback || {};
   const primaryReady = primary.state === "ready";
   const fallbackReady = fallback.state === "ready";
 
-  $("brainState").textContent = primaryReady ? "Codex listo" : fallbackReady ? "Google listo" : "Configurar Codex";
+  $("brainState").textContent = primaryReady ? "CODEX ONLINE" : fallbackReady ? "GEMINI ONLINE" : "AUTH REQUIRED";
   $("briefingTitle").textContent = vitals.status === "Nominal" ? "Sistemas nominales." : vitals.status;
   $("briefingText").textContent = `Codex: ${primary.state || "needs_auth"}. Google: ${fallback.state || "needs_key"}. ${vitals.notes.join(" ")}`;
-  $("brainName").textContent = `${primary.provider || "codex-chatgpt-oauth"} / ${primary.model || "codex"}`;
-  $("brainDetail").textContent = `${primary.detail || ""} ${fallback.detail || ""}`.trim();
   $("cpuMetric").textContent = percent(vitals.cpu_percent);
   $("ramMetric").textContent = percent(vitals.ram_percent);
   $("diskMetric").textContent = percent(vitals.disk_percent);
@@ -169,7 +193,7 @@ async function startCodexLogin() {
     });
     renderCodexLogin(data.login);
     if (state.codexLoginTimer) clearInterval(state.codexLoginTimer);
-    state.codexLoginTimer = setInterval(pollCodexLogin, 3000);
+    if (data.login.state !== "connected") state.codexLoginTimer = setInterval(pollCodexLogin, 3000);
   } catch (error) {
     $("codexLoginStatus").textContent = error.message;
     $("brainOutput").textContent = error.message;
@@ -357,6 +381,16 @@ function isTerminalNoise(line) {
   return ["gpt-", "msg=interrupt", "/queue", "/bg", "/steer", "ctrl+c", "tokens", "private telemetry", "current local telemetry"].some((fragment) => lower.includes(fragment));
 }
 
+function startCoordinateNoise() {
+  const matrices = document.querySelectorAll(".data-matrix span");
+  state.coordinateTimer = setInterval(() => {
+    matrices.forEach((item, index) => {
+      const seed = Math.floor(Math.random() * 4095).toString(16).toUpperCase().padStart(3, "0");
+      item.dataset.coord = ` // ${index}:${seed}`;
+    });
+  }, 1200);
+}
+
 async function getJson(url, options) {
   const response = await fetch(url, options);
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
@@ -375,4 +409,5 @@ function escapeHtml(value) {
   return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
+openPanel("metrics");
 refreshAll();
