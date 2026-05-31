@@ -6,7 +6,7 @@ import re
 import sqlite3
 import time
 from collections.abc import AsyncIterator
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
@@ -27,7 +27,6 @@ CURSOR_POSITION_RESPONSE = "\x1b[32;1R"
 HERMES_LIMIT_MESSAGE = "Hermes no puede responder ahora: limite de uso del proveedor alcanzado."
 HERMES_EMPTY_MESSAGE = "Hermes recibio la orden, pero no devolvio una respuesta final."
 TERMINAL_MODE = "alfred"
-_RECENT_FAILURE_WINDOW = timedelta(minutes=30)
 
 
 class HermesClient:
@@ -91,7 +90,7 @@ class HermesClient:
         if not endpoint.endswith("/v1"):
             endpoint = f"{endpoint}/v1"
 
-        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, read=None)) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(6.0, read=6.0)) as client:
             async with client.stream("POST", f"{endpoint}/chat/completions", json=payload, headers=headers) as resp:
                 resp.raise_for_status()
                 async for line in resp.aiter_lines():
@@ -168,7 +167,7 @@ class HermesClient:
         chunks: list[str] = []
         saw_output = False
         idle_rounds = 0
-        for _ in range(100):
+        for _ in range(16):
             try:
                 message = await asyncio.wait_for(websocket.recv(), timeout=0.5)
             except TimeoutError:
@@ -208,7 +207,7 @@ class HermesClient:
         if not self._state_db_path():
             return ""
 
-        deadline = time.monotonic() + 90
+        deadline = time.monotonic() + 12
         user_message_id = 0
         session_id = ""
         while time.monotonic() < deadline:
@@ -341,8 +340,7 @@ class HermesClient:
                 last_failure = timestamp or last_failure
 
         if last_failure and (not last_success or last_failure >= last_success):
-            if datetime.now() - last_failure < _RECENT_FAILURE_WINDOW:
-                return HERMES_LIMIT_MESSAGE
+            return HERMES_LIMIT_MESSAGE
         return ""
 
 
