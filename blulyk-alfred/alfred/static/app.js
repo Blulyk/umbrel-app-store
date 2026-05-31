@@ -23,7 +23,11 @@ $("reloadCapabilities").addEventListener("click", loadStatus);
 $("reloadBrain").addEventListener("click", loadStatus);
 $("loadBridge").addEventListener("click", loadBridgeConfig);
 $("sendAssetCommand").addEventListener("click", sendAssetCommand);
-$("openaiForm").addEventListener("submit", saveOpenAISettings);
+$("googleForm").addEventListener("submit", saveGoogleSettings);
+$("chatgptOAuthForm").addEventListener("submit", saveChatGPTOAuthSettings);
+$("oauthConnect").addEventListener("click", () => {
+  window.location.href = "/oauth/chatgpt/start";
+});
 $("repeatVoice").addEventListener("click", () => speak(state.lastAssistantText, true));
 $("stopVoice").addEventListener("click", stopVoice);
 $("listenVoice").addEventListener("click", toggleDictation);
@@ -92,11 +96,16 @@ async function loadStatus() {
   const docker = context.docker;
   const brain = data.brain;
 
-  $("brainState").textContent = brain.state === "ready" ? "OpenAI listo" : "Configurar mente";
+  const primary = brain.primary || {};
+  const fallback = brain.fallback || {};
+  const fallbackReady = fallback.state === "ready";
+  const oauthReady = primary.state && primary.state !== "not_configured";
+
+  $("brainState").textContent = fallbackReady ? "Google listo" : oauthReady ? "OAuth preparado" : "Configurar mente";
   $("briefingTitle").textContent = vitals.status === "Nominal" ? "Sistemas nominales." : vitals.status;
-  $("briefingText").textContent = `Mente: ${brain.state}. ${vitals.notes.join(" ")}`;
-  $("brainName").textContent = `${brain.provider} / ${brain.model}`;
-  $("brainDetail").textContent = brain.detail;
+  $("briefingText").textContent = `Google: ${fallback.state || "needs_key"}. ChatGPT OAuth: ${primary.state || "not_configured"}. ${vitals.notes.join(" ")}`;
+  $("brainName").textContent = `${fallback.provider || "google-gemini"} / ${fallback.model || "gemini"}`;
+  $("brainDetail").textContent = `${fallback.detail || ""} ${primary.detail || ""}`.trim();
   $("cpuMetric").textContent = percent(vitals.cpu_percent);
   $("ramMetric").textContent = percent(vitals.ram_percent);
   $("diskMetric").textContent = percent(vitals.disk_percent);
@@ -110,22 +119,50 @@ async function loadStatus() {
   $("brainOutput").textContent = JSON.stringify(brain, null, 2);
 }
 
-async function saveOpenAISettings(event) {
+async function saveGoogleSettings(event) {
   event.preventDefault();
-  const apiKey = $("openaiKey").value.trim();
-  const model = $("openaiModel").value.trim();
+  const apiKey = $("googleKey").value.trim();
+  const model = $("googleModel").value.trim();
   if (!apiKey) {
-    $("brainOutput").textContent = "Introduce una OPENAI_API_KEY.";
+    $("brainOutput").textContent = "Introduce una GOOGLE_API_KEY.";
     return;
   }
-  $("brainOutput").textContent = "Guardando mente OpenAI.";
+  $("brainOutput").textContent = "Guardando fallback Google.";
   try {
-    const data = await getJson("/settings/openai", {
+    const data = await getJson("/settings/google", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ api_key: apiKey, model: model || null })
     });
-    $("openaiKey").value = "";
+    $("googleKey").value = "";
+    $("brainOutput").textContent = JSON.stringify(data.brain, null, 2);
+    await loadStatus();
+  } catch (error) {
+    $("brainOutput").textContent = error.message;
+  }
+}
+
+async function saveChatGPTOAuthSettings(event) {
+  event.preventDefault();
+  const payload = {
+    client_id: $("oauthClientId").value.trim(),
+    client_secret: $("oauthClientSecret").value.trim(),
+    authorization_url: $("oauthAuthorizationUrl").value.trim(),
+    token_url: $("oauthTokenUrl").value.trim(),
+    scope: $("oauthScope").value.trim()
+  };
+  if (!payload.client_id || !payload.client_secret || !payload.authorization_url || !payload.token_url) {
+    $("brainOutput").textContent = "Completa client_id, client_secret, authorization_url y token_url.";
+    return;
+  }
+  $("brainOutput").textContent = "Guardando configuracion OAuth de ChatGPT.";
+  try {
+    const data = await getJson("/settings/chatgpt-oauth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    $("oauthClientSecret").value = "";
     $("brainOutput").textContent = JSON.stringify(data.brain, null, 2);
     await loadStatus();
   } catch (error) {

@@ -1,21 +1,21 @@
 manifestVersion: 1
 id: blulyk-alfred
 name: JARVIS
-tagline: OpenAI-powered home intelligence for Umbrel
+tagline: Local JARVIS console with Google Gemini fallback
 category: ai
-version: "1.1.0"
+version: "1.2.0"
 port: 8080
 path: ""
 icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-alfred/icon.svg
 description: >-
-  JARVIS is a local-first intelligence console for umbrelOS with OpenAI as its
-  cognitive core. It combines fast local reflexes for system state, Docker
-  visibility, memory and remote asset control with deeper OpenAI reasoning once
-  you configure an API key.
+  JARVIS is a local-first intelligence console for umbrelOS with a prepared
+  ChatGPT OAuth connection layer and Google Gemini as the practical fallback
+  brain. It combines fast local reflexes for system state, Docker visibility,
+  memory and remote asset control with external reasoning once configured.
 
 
   The interface is built as an operational home cockpit: live host telemetry,
-  OpenAI mind state, container registry inspection, connected asset status,
+  mind state, container registry inspection, connected asset status,
   voice input, spoken replies, and command routing are available from one
   Umbrel-protected app.
 
@@ -31,7 +31,8 @@ repo: https://github.com/Blulyk/umbrel-app-store
 support: https://github.com/Blulyk/umbrel-app-store/issues
 gallery: []
 releaseNotes: >-
-  Adds a direct OpenAI Responses API brain, in-app API key setup, fast local
-  reflex commands, and an upgraded JARVIS cockpit for desktop and mobile use.
+  Replaces direct OpenAI API usage with a ChatGPT OAuth preparation layer and
+  Google Gemini fallback, adds usage-saving caching and compact context, and
+  keeps the responsive JARVIS cockpit for desktop and mobile use.
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store

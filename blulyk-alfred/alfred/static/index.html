@@ -56,7 +56,7 @@
         <div class="mind-strip">
           <section class="mind-card">
             <span>Mente</span>
-            <strong id="brainName">OpenAI</strong>
+            <strong id="brainName">Google Gemini</strong>
             <small id="brainDetail">Sin configurar</small>
           </section>
           <section class="mind-card">
@@ -110,11 +110,20 @@
             <div id="capabilityList" class="list"></div>
           </section>
           <section class="panel">
-            <div class="panel-head"><h3>Mente OpenAI</h3><button id="reloadBrain" class="text-button">Estado</button></div>
-            <form id="openaiForm" class="settings-form">
-              <input id="openaiKey" type="password" autocomplete="off" placeholder="OPENAI_API_KEY">
-              <input id="openaiModel" autocomplete="off" placeholder="Modelo, por defecto gpt-5.1">
-              <button class="text-button" type="submit">Guardar mente</button>
+            <div class="panel-head"><h3>Mente y Fallback</h3><button id="reloadBrain" class="text-button">Estado</button></div>
+            <form id="googleForm" class="settings-form">
+              <input id="googleKey" type="password" autocomplete="off" placeholder="GOOGLE_API_KEY">
+              <input id="googleModel" autocomplete="off" placeholder="gemini-2.5-flash-lite">
+              <button class="text-button" type="submit">Guardar Google</button>
+            </form>
+            <form id="chatgptOAuthForm" class="settings-form oauth-form">
+              <input id="oauthClientId" autocomplete="off" placeholder="ChatGPT OAuth client_id">
+              <input id="oauthClientSecret" type="password" autocomplete="off" placeholder="client_secret">
+              <input id="oauthAuthorizationUrl" autocomplete="off" placeholder="authorization_url">
+              <input id="oauthTokenUrl" autocomplete="off" placeholder="token_url">
+              <input id="oauthScope" autocomplete="off" placeholder="scope">
+              <button class="text-button" type="submit">Guardar OAuth</button>
+              <button id="oauthConnect" class="text-button" type="button">Conectar</button>
             </form>
             <pre id="brainOutput" class="output"></pre>
           </section>

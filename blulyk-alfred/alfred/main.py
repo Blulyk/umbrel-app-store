@@ -4,8 +4,8 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from alfred.asset_registry import AssetRegistry
@@ -13,7 +13,7 @@ from alfred.brain import JarvisBrain
 from alfred.config import get_settings
 from alfred.docker_control import docker_summary
 from alfred.memory import MemoryStore
-from alfred.schemas import AssetCommandRequest, ChatRequest, OpenAISettingsRequest, ToolCallRequest
+from alfred.schemas import AssetCommandRequest, ChatGPTOAuthSettingsRequest, ChatRequest, GoogleSettingsRequest, ToolCallRequest
 from alfred.threats import scan_auth_log
 from alfred.tool_router import ToolRouter
 from alfred.vitals import vitals_payload
@@ -47,7 +47,7 @@ async def status() -> dict[str, Any]:
         "identity": {
             "name": "JARVIS",
             "full_name": "Just A Rather Very Intelligent System",
-            "mode": "OpenAI cognitive core with local reflex orchestration",
+            "mode": "ChatGPT OAuth prepared with Google Gemini fallback and local reflex orchestration",
         },
         "brain": await brain.status(),
         "context": context,
@@ -55,10 +55,36 @@ async def status() -> dict[str, Any]:
     }
 
 
-@app.post("/settings/openai")
-async def configure_openai(request: OpenAISettingsRequest) -> dict[str, Any]:
-    await brain.save_openai_key(request.api_key, request.model)
+@app.post("/settings/google")
+async def configure_google(request: GoogleSettingsRequest) -> dict[str, Any]:
+    await brain.save_google_key(request.api_key, request.model)
     return {"ok": True, "brain": await brain.status()}
+
+
+@app.post("/settings/chatgpt-oauth")
+async def configure_chatgpt_oauth(request: ChatGPTOAuthSettingsRequest) -> dict[str, Any]:
+    await brain.save_chatgpt_oauth(request.model_dump())
+    return {"ok": True, "brain": await brain.status()}
+
+
+@app.get("/oauth/chatgpt/start")
+async def start_chatgpt_oauth(request: Request) -> RedirectResponse:
+    try:
+        url = await brain.chatgpt_oauth_authorization_url(str(request.url_for("chatgpt_oauth_callback")))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return RedirectResponse(url)
+
+
+@app.get("/oauth/chatgpt/callback", name="chatgpt_oauth_callback")
+async def chatgpt_oauth_callback(code: str, state: str, request: Request) -> PlainTextResponse:
+    result = await brain.complete_chatgpt_oauth(code, state, str(request.url_for("chatgpt_oauth_callback")))
+    if not result.get("ok"):
+        return PlainTextResponse(f"JARVIS OAuth no completado: {result.get('error')}", status_code=400)
+    return PlainTextResponse(
+        "JARVIS OAuth conectado. La conexion queda guardada, pero ChatGPT aun no ofrece inferencia oficial "
+        "por OAuth de suscripcion para apps externas."
+    )
 
 
 @app.get("/")
@@ -167,7 +193,7 @@ async def chat(request: ChatRequest) -> StreamingResponse:
             async for chunk in brain.stream_chat(request.message, context):
                 yield chunk.encode()
         except Exception:
-            yield "La mente OpenAI de JARVIS no devolvio una respuesta final.".encode()
+            yield "La mente externa de JARVIS no devolvio una respuesta final.".encode()
 
     return StreamingResponse(stream(), media_type="text/plain; charset=utf-8")
 
@@ -182,7 +208,7 @@ async def maybe_answer_locally(message: str) -> str | None:
         return format_briefing(context, await brain.status())
     if normalized in {"herramientas", "capacidades", "tools", "ayuda", "que puedes hacer?", "qué puedes hacer?", "que puedes hacer", "qué puedes hacer"}:
         names = ", ".join(item["name"] for item in tools.catalog())
-        return f"Puedo vigilar Umbrel, leer telemetria, revisar Docker, consultar memoria, controlar assets remotos permitidos, hablar por voz en el navegador y delegar razonamiento profundo a OpenAI cuando configures la API key. Capacidades locales: {names}."
+        return f"Puedo vigilar Umbrel, leer telemetria, revisar Docker, consultar memoria, controlar assets remotos permitidos, hablar por voz en el navegador y delegar razonamiento profundo a Google Gemini como fallback. ChatGPT OAuth queda preparado para cuando exista un flujo oficial utilizable como backend. Capacidades locales: {names}."
     if normalized in {"contenedores", "docker", "containers"}:
         data = await asyncio.to_thread(docker_summary, settings)
         if not data.get("available"):
@@ -197,13 +223,18 @@ def format_briefing(context: dict[str, Any], brain_state: dict[str, Any]) -> str
     vitals_data = context["vitals"]
     docker_data = context["docker"]
     assets_data = context["assets"]
+    primary = brain_state.get("primary", {})
+    fallback = brain_state.get("fallback", {})
+    primary_state = primary.get("state", "not_configured")
+    fallback_state = fallback.get("state", "needs_key")
+    fallback_model = fallback.get("model", "google")
     docker_text = "Docker no disponible"
     if docker_data.get("available"):
         running = sum(1 for item in docker_data.get("containers", []) if item.get("status") == "running")
         docker_text = f"{running}/{len(docker_data.get('containers', []))} contenedores activos"
     return "\n".join(
         [
-            f"JARVIS online. Mente: {brain_state['state']} ({brain_state['provider']}).",
+            f"JARVIS online. ChatGPT OAuth: {primary_state}. Google fallback: {fallback_state} ({fallback_model}).",
             f"Sistema: {vitals_data['status']} | CPU {vitals_data['cpu_percent']:.0f}% | RAM {vitals_data['ram_percent']:.0f}% | Disco {vitals_data['disk_percent']:.0f}%.",
             f"Infraestructura: {docker_text}. Assets conectados: {len(assets_data)}.",
         ]

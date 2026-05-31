@@ -389,6 +389,14 @@ input:focus, select:focus {
   margin-bottom: 12px;
 }
 
+.oauth-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.oauth-form button {
+  min-height: 44px;
+}
+
 .output {
   min-height: 120px;
   overflow: auto;
