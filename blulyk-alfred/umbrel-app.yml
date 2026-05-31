@@ -1,0 +1,37 @@
+manifestVersion: 1
+id: blulyk-alfred
+name: ALFRED
+tagline: Tactical local AI operations for Umbrel
+category: ai
+version: "0.1.0"
+port: 8080
+path: ""
+description: >-
+  ALFRED is a local-first tactical assistant for umbrelOS. It provides a
+  polished operations console for host vitality, perimeter log assessment,
+  Docker visibility, long-term incident memory, Hermes-compatible local LLM
+  streaming, and encrypted remote PC asset control.
+
+
+  The interface is designed as a fast command center: live system vitals,
+  intrusion anomaly summaries, container registry inspection, connected asset
+  status, remote process audits, and a streaming command console are all
+  available from one Umbrel-protected app.
+
+
+  Remote PC control uses an encrypted WebSocket bridge and an explicit action
+  allowlist. ALFRED can ping an asset, audit processes, launch configured apps,
+  lock the workstation, or request sleep. It does not accept arbitrary shell
+  commands.
+developer: Blulyk
+website: https://github.com/Blulyk/umbrel-app-store
+dependencies: []
+repo: https://github.com/Blulyk/umbrel-app-store
+support: https://github.com/Blulyk/umbrel-app-store/issues
+gallery: []
+releaseNotes: >-
+  Initial ALFRED release with next-generation Umbrel dashboard, local telemetry,
+  JSON tool routing, SQLite memory, Hermes LLM streaming, Docker inspection,
+  auth log threat scanning, and encrypted remote PC bridge.
+submitter: Blulyk
+submission: https://github.com/Blulyk/umbrel-app-store

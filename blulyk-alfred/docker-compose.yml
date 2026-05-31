@@ -1,0 +1,37 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      APP_HOST: blulyk-alfred_web_1
+      APP_PORT: 8080
+
+  web:
+    build: .
+    container_name: blulyk-alfred_web_1
+    restart: on-failure
+    stop_grace_period: 1m
+    volumes:
+      - "${APP_DATA_DIR}/data:/data"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "/var/log:/host/var/log:ro"
+      - "/etc/localtime:/etc/localtime:ro"
+    environment:
+      TZ: "${TZ:-Europe/Madrid}"
+      ALFRED_HOST: "0.0.0.0"
+      ALFRED_PORT: "8080"
+      ALFRED_DB: "/data/alfred.sqlite3"
+      ALFRED_REDIS_URL: "redis://blulyk-alfred_redis_1:6379/0"
+      ALFRED_HERMES_BASE_URL: "http://hermes:8080/v1"
+      ALFRED_HERMES_MODEL: "hermes-local"
+      ALFRED_DOCKER_CONTROL: "false"
+      ALFRED_AUTH_LOG: "/host/var/log/auth.log"
+      ALFRED_BRIDGE_SECRET: "${APP_SEED}"
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    container_name: blulyk-alfred_redis_1
+    restart: on-failure
+    command: ["redis-server", "--save", "", "--appendonly", "no"]

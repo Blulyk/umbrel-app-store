@@ -1,0 +1,7 @@
+{
+  "allowed_apps": {
+    "notepad": "notepad.exe",
+    "vscode": "code",
+    "browser": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+  }
+}
