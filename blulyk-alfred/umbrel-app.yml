@@ -3,7 +3,7 @@ id: blulyk-alfred
 name: ALFRED
 tagline: Tactical local AI operations for Umbrel
 category: ai
-version: "0.1.5"
+version: "0.1.6"
 port: 8080
 path: ""
 icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-alfred/icon.svg
@@ -32,8 +32,8 @@ repo: https://github.com/Blulyk/umbrel-app-store
 support: https://github.com/Blulyk/umbrel-app-store/issues
 gallery: []
 releaseNotes: >-
-  Reads final Hermes replies from Hermes Agent's message database after sending
-  console prompts, so ALFRED returns the real assistant answer instead of
-  terminal UI output.
+  Cancels stale Hermes terminal turns before each ALFRED prompt, disables
+  WebSocket keepalive timeouts, and removes verbose telemetry fallbacks from
+  chat responses.
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store

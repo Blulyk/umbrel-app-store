@@ -92,7 +92,13 @@ class HermesClient:
             return
 
         before_id = await asyncio.to_thread(self._latest_message_id)
-        async with websockets.connect(self._terminal_ws_url(), open_timeout=10, close_timeout=2) as websocket:
+        async with websockets.connect(
+            self._terminal_ws_url(),
+            open_timeout=10,
+            close_timeout=2,
+            ping_interval=None,
+        ) as websocket:
+            await self._cancel_active_terminal_turn(websocket)
             await self._drain_initial_terminal(websocket)
             await websocket.send(json.dumps({"type": "input", "data": safe_message + "\n"}))
             response = await self._wait_for_stored_response(safe_message, before_id)
@@ -118,6 +124,10 @@ class HermesClient:
                 quiet_rounds = 0
             except TimeoutError:
                 quiet_rounds += 1
+
+    async def _cancel_active_terminal_turn(self, websocket: websockets.ClientConnection) -> None:
+        await websocket.send(json.dumps({"type": "input", "data": "\u0003"}))
+        await asyncio.sleep(0.25)
 
     async def _collect_terminal_response(self, websocket: websockets.ClientConnection, prompt: str) -> str:
         chunks: list[str] = []

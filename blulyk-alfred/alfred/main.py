@@ -146,9 +146,8 @@ async def chat(request: ChatRequest) -> StreamingResponse:
         try:
             async for chunk in hermes.stream_chat(request.message, context):
                 yield chunk.encode()
-        except Exception as exc:
-            fallback = alfred_fallback(request.message, context, exc)
-            yield fallback.encode()
+        except Exception:
+            yield "Hermes no devolvio una respuesta final limpia.".encode()
 
     return StreamingResponse(stream(), media_type="text/plain; charset=utf-8")
 
@@ -179,16 +178,6 @@ async def gather_context() -> dict[str, Any]:
         "recent_incidents": incident_result,
         "assets": asset_result,
     }
-
-
-def alfred_fallback(message: str, context: dict[str, Any], exc: Exception) -> str:
-    return (
-        "Hermes uplink unavailable. Local analysis follows.\n"
-        f"Request: {message}\n"
-        f"Telemetry: {json.dumps(context, ensure_ascii=False, indent=2)}\n"
-        f"Fault: {exc}\n"
-        "Recommendation: restore the Hermes endpoint before expecting conversational finesse."
-    )
 
 
 def run() -> None:
