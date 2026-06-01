@@ -13,6 +13,32 @@ def replace_once(path: str, needle: str, replacement: str) -> None:
 
 replace_once(
     "core/middleware.py",
+    """        is_report = path.startswith("/api/research/report/")
+""",
+    """        is_report = path.startswith("/api/research/report/")
+        # Document-library PDF previews are embedded in same-origin iframes.
+        is_pdf_render = path.startswith("/api/document/") and path.endswith("/render-pdf")
+""",
+)
+
+replace_once(
+    "core/middleware.py",
+    """            pass
+        else:
+""",
+    """            pass
+        elif is_pdf_render:
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; "
+                "object-src 'none'; "
+                "frame-ancestors 'self'"
+            )
+        else:
+""",
+)
+
+replace_once(
+    "core/middleware.py",
     "img-src 'self' data: blob:; ",
     "img-src 'self' data: blob: https: http:; ",
 )

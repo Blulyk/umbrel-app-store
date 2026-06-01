@@ -4,7 +4,7 @@ name: Odysseus
 tagline: Self-hosted AI workspace for chat, agents, research and documents
 icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-odysseus/icon.svg
 category: ai
-version: "1.0.7"
+version: "1.0.8"
 port: 7000
 description: >-
   Odysseus is a self-hosted AI workspace designed as a local-first alternative
@@ -34,7 +34,6 @@ defaultPassword: ""
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store
 releaseNotes: >-
-  v1.0.7 fixes the document library import button showing "0 files imported"
-  after selecting a PDF. The file picker now snapshots the selected files before
-  clearing the input, so PDFs and other documents are actually sent to the
-  import pipeline.
+  v1.0.8 fixes PDF previews in the document library. Same-origin PDF render
+  routes can now be embedded safely in the library iframe instead of being
+  blocked by X-Frame-Options / frame-ancestors security headers.
