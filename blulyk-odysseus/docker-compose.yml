@@ -1,0 +1,86 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      APP_HOST: blulyk-odysseus_web_1
+      APP_PORT: 7000
+
+  web:
+    image: ghcr.io/blulyk/odysseus-umbrel:latest
+    container_name: blulyk-odysseus_web_1
+    restart: unless-stopped
+    stop_grace_period: 1m
+    depends_on:
+      searxng:
+        condition: service_healthy
+      chromadb:
+        condition: service_started
+    environment:
+      APP_PORT: "7000"
+      AUTH_ENABLED: "false"
+      LOCALHOST_BYPASS: "false"
+      SEARXNG_INSTANCE: "http://blulyk-odysseus_searxng_1:8080"
+      CHROMADB_HOST: "blulyk-odysseus_chromadb_1"
+      CHROMADB_PORT: "8000"
+      NTFY_BASE_URL: "http://blulyk-odysseus_ntfy_1"
+      PUID: "1000"
+      PGID: "1000"
+      TZ: "Europe/Madrid"
+    volumes:
+      - "${APP_DATA_DIR}/data:/app/data"
+      - "${APP_DATA_DIR}/logs:/app/logs"
+      - "${APP_DATA_DIR}/data/ssh:/app/.ssh"
+      - "${APP_DATA_DIR}/data/huggingface:/app/.cache/huggingface"
+      - "${APP_DATA_DIR}/data/local:/app/.local"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  chromadb:
+    image: docker.io/chromadb/chroma:latest
+    container_name: blulyk-odysseus_chromadb_1
+    restart: unless-stopped
+    environment:
+      ANONYMIZED_TELEMETRY: "FALSE"
+    volumes:
+      - "${APP_DATA_DIR}/chromadb:/chroma/chroma"
+
+  searxng:
+    image: docker.io/searxng/searxng:latest
+    container_name: blulyk-odysseus_searxng_1
+    restart: unless-stopped
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        if [ ! -s /etc/searxng/settings.yml ] || grep -q 'odysseus-local-searxng-json-2026-05-30\|__SEARXNG_SECRET__' /etc/searxng/settings.yml; then
+          secret="$${SEARXNG_SECRET:-}"
+          if [ -z "$$secret" ]; then
+            secret="$$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+          fi
+          sed "s|__SEARXNG_SECRET__|$$secret|g" /tmp/searxng-settings.yml.template > /etc/searxng/settings.yml
+        fi
+        exec /usr/local/searxng/entrypoint.sh
+    environment:
+      SEARXNG_BASE_URL: "http://blulyk-odysseus_searxng_1:8080/"
+      SEARXNG_SECRET: "${APP_SEED}"
+    volumes:
+      - "${APP_DATA_DIR}/searxng:/etc/searxng"
+      - "./config/searxng/settings.yml:/tmp/searxng-settings.yml.template:ro"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/', timeout=5).read(1)\""]
+      interval: 5s
+      timeout: 6s
+      retries: 20
+      start_period: 10s
+
+  ntfy:
+    image: docker.io/binwiederhier/ntfy
+    container_name: blulyk-odysseus_ntfy_1
+    restart: unless-stopped
+    command: serve
+    environment:
+      NTFY_BASE_URL: "http://blulyk-odysseus_ntfy_1"
+    volumes:
+      - "${APP_DATA_DIR}/ntfy:/var/cache/ntfy"

@@ -1,0 +1,39 @@
+manifestVersion: 1
+id: blulyk-odysseus
+name: Odysseus
+tagline: Self-hosted AI workspace for chat, agents, research and documents
+icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-odysseus/icon.svg
+category: ai
+version: "1.0.0"
+port: 7000
+description: >-
+  Odysseus is a self-hosted AI workspace designed as a local-first alternative
+  to ChatGPT and Claude-style workspaces. It includes chat, agents, model
+  management, deep research, documents, memory, skills, email, notes, tasks,
+  calendar features, and mobile/PWA support.
+
+
+  This Umbrel package runs Odysseus with its bundled ChromaDB vector store,
+  SearXNG search service, and ntfy notification service. Application data,
+  logs, SSH keys, Hugging Face cache, and locally installed model-serving tools
+  are persisted in the app data directory.
+
+
+  Odysseus is exposed through Umbrel's authenticated app proxy. No service ports
+  are exposed directly by this package.
+developer: pewdiepie-archdaemon
+website: https://github.com/pewdiepie-archdaemon/odysseus
+dependencies: []
+repo: https://github.com/pewdiepie-archdaemon/odysseus
+support: https://github.com/pewdiepie-archdaemon/odysseus/issues
+gallery:
+  - 1.jpg
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+submitter: Blulyk
+submission: https://github.com/Blulyk/umbrel-app-store
+releaseNotes: >-
+  Initial Umbrel package for Odysseus with persistent app data, ChromaDB,
+  SearXNG, ntfy, host access for Ollama, and a GHCR-built image so Umbrel does
+  not need to build the app during installation.
