@@ -171,8 +171,8 @@ function addWidget(type, overrides = {}) {
     spec: overrides.spec || {},
     x: overrides.x ?? defaults.x,
     y: overrides.y ?? defaults.y,
-    w: overrides.w ?? defaults.w,
-    h: overrides.h ?? defaults.h
+    w: overrides.w ?? overrides.spec?.size?.w ?? defaults.w,
+    h: overrides.h ?? overrides.spec?.size?.h ?? defaults.h
   };
   const element = document.createElement("article");
   element.className = `hud-widget widget-${type}`;
@@ -289,14 +289,40 @@ function widgetContent(widget) {
     </div>`;
   return `
     <div class="dynamic-widget">
-      <p class="muted">${escapeHtml(widget.spec.description || "Widget generado por JARVIS")}</p>
-      <strong>${escapeHtml(widget.prompt || widget.spec.query || "Widget operativo")}</strong>
-      <div class="telemetry-lines">
-        <span>STREAM: conectado al bus local</span>
-        <span>RENDER: tarjeta generada en canvas</span>
-        <span>UPDATE: esperando endpoint especifico</span>
-      </div>
+      ${renderGeneratedWidget(widget)}
     </div>`;
+}
+
+function renderGeneratedWidget(widget) {
+  const custom = widget.spec.custom || {};
+  const fields = Array.isArray(custom.fields) ? custom.fields : [];
+  const actions = Array.isArray(custom.actions) ? custom.actions : [];
+  const notes = Array.isArray(custom.notes) ? custom.notes : [];
+  return `
+    <p class="muted">${escapeHtml(widget.spec.description || "Widget generado por JARVIS")}</p>
+    <form class="generated-form" data-role="generated-form">
+      ${fields.map(renderGeneratedField).join("") || `<div class="generated-note">Sin campos. Usa acciones directas.</div>`}
+      <div class="generated-actions">
+        ${actions.map((action) => `<button class="mini-button" data-generated-action="${escapeHtml(action.id)}" type="button">${escapeHtml(action.label || action.id)}</button>`).join("") || `<button class="mini-button" data-generated-action="show" type="button">Mostrar</button>`}
+      </div>
+    </form>
+    ${notes.length ? `<div class="telemetry-lines">${notes.map((note) => `<span>${escapeHtml(note)}</span>`).join("")}</div>` : ""}
+    <pre class="output generated-output" data-role="generated-output"></pre>`;
+}
+
+function renderGeneratedField(field) {
+  const id = escapeHtml(field.id || "value");
+  const label = escapeHtml(field.label || field.id || "Valor");
+  const placeholder = escapeHtml(field.placeholder || "");
+  if (field.type === "textarea") {
+    return `<label class="generated-field"><span>${label}</span><textarea data-generated-field="${id}" placeholder="${placeholder}"></textarea></label>`;
+  }
+  if (field.type === "select") {
+    const options = Array.isArray(field.options) ? field.options : [];
+    return `<label class="generated-field"><span>${label}</span><select data-generated-field="${id}">${options.map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join("")}</select></label>`;
+  }
+  const type = ["search", "number", "text"].includes(field.type) ? field.type : "text";
+  return `<label class="generated-field"><span>${label}</span><input data-generated-field="${id}" type="${type}" placeholder="${placeholder}" autocomplete="off"></label>`;
 }
 
 function bindWidget(widget) {
@@ -333,6 +359,19 @@ function bindWidget(widget) {
   if (googleForm) googleForm.addEventListener("submit", (event) => saveGoogleSettings(event, widget));
   const terminalForm = element.querySelector("[data-role='terminal-form']");
   if (terminalForm) terminalForm.addEventListener("submit", (event) => runTerminalCommand(event, widget));
+  const generatedForm = element.querySelector("[data-role='generated-form']");
+  if (generatedForm) {
+    generatedForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      runGeneratedAction(widget, widget.spec.custom?.actions?.[0]?.id || "show");
+    });
+    generatedForm.addEventListener("click", (event) => {
+      const actionId = event.target.closest("[data-generated-action]")?.dataset.generatedAction;
+      if (!actionId) return;
+      event.preventDefault();
+      runGeneratedAction(widget, actionId);
+    });
+  }
 }
 
 async function handleWidgetAction(widget, action) {
@@ -655,6 +694,69 @@ async function runTerminalCommand(event, widget) {
     body: JSON.stringify({ tool: "system.host_shell", arguments: { command, confirm: true, timeout: 60 } })
   });
   setRoleText(widget, "terminal-output", JSON.stringify(data.result, null, 2));
+}
+
+async function runGeneratedAction(widget, actionId) {
+  const custom = widget.spec.custom || {};
+  const actions = Array.isArray(custom.actions) ? custom.actions : [];
+  const action = actions.find((item) => item.id === actionId) || { id: "show", label: "Mostrar", type: "show_value" };
+  const values = generatedValues(widget);
+  const output = widget.element.querySelector("[data-role='generated-output']");
+  if (output) output.textContent = "Ejecutando.";
+  try {
+    if (action.type === "open_url") {
+      const url = fillTemplate(action.urlTemplate || "https://www.google.com/search?q={query}", values);
+      if (!/^https?:\/\//i.test(url)) throw new Error("La accion open_url requiere una URL http/https.");
+      window.open(url, "_blank", "noopener,noreferrer");
+      if (output) output.textContent = `Abierto: ${url}`;
+      return;
+    }
+    if (action.type === "ask_jarvis") {
+      const message = fillTemplate(action.promptTemplate || widget.spec.query || "{request}", values);
+      if (output) output.textContent = "Enviado a JARVIS.";
+      const chat = state.widgets.find((item) => item.type === "chat") || addWidget("chat");
+      focusWidget(chat);
+      await sendChatFromWidget(chat, message);
+      return;
+    }
+    if (action.type === "tool_call") {
+      const data = await getJson("/tools", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tool: action.tool, arguments: fillObjectTemplates(action.arguments || {}, values) })
+      });
+      if (output) output.textContent = JSON.stringify(data.result || data, null, 2);
+      return;
+    }
+    if (output) output.textContent = JSON.stringify(values, null, 2);
+  } catch (error) {
+    if (output) output.textContent = `Fallo: ${error.message}`;
+  }
+}
+
+function generatedValues(widget) {
+  const values = {};
+  widget.element.querySelectorAll("[data-generated-field]").forEach((field) => {
+    values[field.dataset.generatedField] = field.value;
+  });
+  if (!("query" in values)) {
+    const first = Object.values(values).find((value) => String(value || "").trim());
+    if (first) values.query = first;
+  }
+  return values;
+}
+
+function fillTemplate(template, values) {
+  return String(template || "").replace(/\{([a-zA-Z0-9_]+)\}/g, (_, key) => encodeURIComponent(values[key] ?? ""));
+}
+
+function fillObjectTemplates(value, values) {
+  if (typeof value === "string") return fillTemplate(value, values);
+  if (Array.isArray(value)) return value.map((item) => fillObjectTemplates(item, values));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, fillObjectTemplates(item, values)]));
+  }
+  return value;
 }
 
 function toggleDictation(widget) {

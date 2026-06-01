@@ -70,12 +70,23 @@ class JarvisBrain:
 
     async def generate_widget_spec(self, user_prompt: str, tool_context: dict[str, object]) -> dict[str, Any]:
         prompt = (
-            "Devuelve solo JSON valido para crear un widget del dashboard JARVIS. "
-            "Schema: {\"type\":\"chat|metrics|config|logs|assets|self|terminal|custom\","
+            "Devuelve solo JSON valido para crear un widget funcional del dashboard JARVIS. "
+            "Si Rafael pide una herramienta nueva, NO devuelvas una tarjeta generica: crea un widget custom declarativo. "
+            "Schema base: {\"type\":\"chat|metrics|config|logs|assets|self|terminal|custom\","
             "\"title\":\"max 34 chars\",\"description\":\"max 140 chars\","
-            "\"query\":\"orden breve\",\"refreshSeconds\":0|10|30|60}. "
-            "Elige tipos funcionales existentes cuando encajen. Usa self para control de JARVIS, "
-            "terminal para comandos de sistema, custom para informacion general. Sin markdown.\n\n"
+            "\"query\":\"orden breve\",\"refreshSeconds\":0|10|30|60,"
+            "\"size\":{\"w\":300-980,\"h\":220-820},"
+            "\"custom\":{\"kind\":\"search|form|tool|assistant|monitor|notes\","
+            "\"fields\":[{\"id\":\"texto_sin_espacios\",\"label\":\"max 24\",\"type\":\"text|search|number|textarea|select\",\"placeholder\":\"max 60\",\"options\":[\"opcional\"]}],"
+            "\"actions\":[{\"id\":\"texto_sin_espacios\",\"label\":\"max 24\",\"type\":\"open_url|ask_jarvis|tool_call|show_value\","
+            "\"urlTemplate\":\"https://www.google.com/search?q={campo}\","
+            "\"promptTemplate\":\"texto con {campo}\",\"tool\":\"vitals.report\",\"arguments\":{}}],"
+            "\"notes\":[\"linea breve\"]}}. "
+            "Herramientas permitidas para tool_call: vitals.report, threats.scan, docker.summary, docker.restart, "
+            "jarvis.self_status, jarvis.self_restart, system.host_shell, memory.incidents, asset.command. "
+            "Para system.host_shell o reinicios incluye arguments.confirm=true solo si Rafael pide control operativo. "
+            "Usa tipos existentes solo para paneles nativos. Para 'buscador', 'calculadora', 'formulario', 'monitor personalizado' "
+            "o cualquier idea nueva usa type=custom con fields/actions. Sin markdown.\n\n"
             f"Contexto: {json.dumps(_tiny_context(tool_context), ensure_ascii=False)}\n"
             f"Solicitud: {user_prompt}"
         )
@@ -523,11 +534,146 @@ def _coerce_widget_spec(text: str, user_prompt: str) -> dict[str, Any]:
         "description": description,
         "query": query,
         "refreshSeconds": refresh if refresh in {0, 10, 30, 60} else 0,
+        "size": _coerce_widget_size(payload.get("size"), widget_type),
+        "custom": _coerce_custom_widget(payload.get("custom"), user_prompt, widget_type),
     }
+
+
+def _coerce_widget_size(value: Any, widget_type: str) -> dict[str, int]:
+    defaults = {
+        "chat": {"w": 860, "h": 540},
+        "metrics": {"w": 430, "h": 360},
+        "config": {"w": 500, "h": 520},
+        "logs": {"w": 470, "h": 380},
+        "assets": {"w": 470, "h": 430},
+        "self": {"w": 470, "h": 360},
+        "terminal": {"w": 560, "h": 360},
+        "custom": {"w": 460, "h": 340},
+    }
+    base = defaults.get(widget_type, defaults["custom"]).copy()
+    if not isinstance(value, dict):
+        return base
+    for key in ("w", "h"):
+        try:
+            base[key] = max(220 if key == "h" else 300, min(820 if key == "h" else 980, int(value.get(key, base[key]))))
+        except (TypeError, ValueError):
+            pass
+    return base
+
+
+def _coerce_custom_widget(value: Any, user_prompt: str, widget_type: str) -> dict[str, Any]:
+    if widget_type != "custom":
+        return {}
+    if isinstance(value, dict):
+        custom = value
+    else:
+        custom = _fallback_custom_widget(user_prompt)
+
+    fields = [_coerce_custom_field(item) for item in custom.get("fields", []) if isinstance(item, dict)]
+    actions = [_coerce_custom_action(item) for item in custom.get("actions", []) if isinstance(item, dict)]
+    notes = [str(item).strip()[:120] for item in custom.get("notes", [])[:5] if str(item).strip()]
+    if not fields and not actions:
+        custom = _fallback_custom_widget(user_prompt)
+        fields = [_coerce_custom_field(item) for item in custom["fields"]]
+        actions = [_coerce_custom_action(item) for item in custom["actions"]]
+        notes = custom.get("notes", [])
+    return {
+        "kind": _safe_token(str(custom.get("kind") or "form"))[:24] or "form",
+        "fields": [item for item in fields if item],
+        "actions": [item for item in actions if item],
+        "notes": notes,
+    }
+
+
+def _coerce_custom_field(item: dict[str, Any]) -> dict[str, Any]:
+    field_type = str(item.get("type") or "text").lower()
+    if field_type not in {"text", "search", "number", "textarea", "select"}:
+        field_type = "text"
+    field_id = _safe_token(str(item.get("id") or item.get("label") or "value"))
+    options = [str(option).strip()[:40] for option in item.get("options", [])[:12] if str(option).strip()]
+    return {
+        "id": field_id[:32] or "value",
+        "label": str(item.get("label") or field_id or "Valor").strip()[:24],
+        "type": field_type,
+        "placeholder": str(item.get("placeholder") or "").strip()[:60],
+        "options": options,
+    }
+
+
+def _coerce_custom_action(item: dict[str, Any]) -> dict[str, Any]:
+    action_type = str(item.get("type") or "show_value").lower()
+    if action_type not in {"open_url", "ask_jarvis", "tool_call", "show_value"}:
+        action_type = "show_value"
+    action_id = _safe_token(str(item.get("id") or item.get("label") or action_type))
+    allowed_tools = {
+        "vitals.report",
+        "threats.scan",
+        "docker.summary",
+        "docker.restart",
+        "jarvis.self_status",
+        "jarvis.self_restart",
+        "system.host_shell",
+        "memory.incidents",
+        "asset.command",
+    }
+    tool = str(item.get("tool") or "")
+    if action_type == "tool_call" and tool not in allowed_tools:
+        tool = "jarvis.self_status"
+    return {
+        "id": action_id[:32] or action_type,
+        "label": str(item.get("label") or action_id or "Ejecutar").strip()[:24],
+        "type": action_type,
+        "urlTemplate": str(item.get("urlTemplate") or "").strip()[:500],
+        "promptTemplate": str(item.get("promptTemplate") or "").strip()[:700],
+        "tool": tool,
+        "arguments": item.get("arguments") if isinstance(item.get("arguments"), dict) else {},
+    }
+
+
+def _fallback_custom_widget(prompt: str) -> dict[str, Any]:
+    text = prompt.lower()
+    if re.search(r"busc|search|google|web", text):
+        return {
+            "kind": "search",
+            "fields": [
+                {"id": "query", "label": "Busqueda", "type": "search", "placeholder": "Texto a buscar"},
+            ],
+            "actions": [
+                {
+                    "id": "search",
+                    "label": "Buscar",
+                    "type": "open_url",
+                    "urlTemplate": "https://www.google.com/search?q={query}",
+                }
+            ],
+            "notes": ["Buscador generado en el dashboard."],
+        }
+    return {
+        "kind": "assistant",
+        "fields": [
+            {"id": "request", "label": "Orden", "type": "textarea", "placeholder": "Indica que debe hacer JARVIS"},
+        ],
+        "actions": [
+            {
+                "id": "ask",
+                "label": "Enviar a JARVIS",
+                "type": "ask_jarvis",
+                "promptTemplate": "{request}",
+            }
+        ],
+        "notes": ["Widget personalizado generado por JARVIS."],
+    }
+
+
+def _safe_token(value: str) -> str:
+    token = re.sub(r"[^a-zA-Z0-9_]+", "_", value.strip().lower()).strip("_")
+    return token or "value"
 
 
 def _infer_widget_type(prompt: str) -> str:
     text = prompt.lower()
+    if re.search(r"buscador|buscar|search|calculadora|formulario|widget personalizado|personalizado|crear widget|genera un widget", text):
+        return "custom"
     if re.search(r"control|reinicia|actualiza|self|propio|ti mismo|jarvis", text):
         return "self"
     if re.search(r"comando|terminal|shell|sistema|host", text):
@@ -562,6 +708,22 @@ def _fallback_widget_title(prompt: str, widget_type: str) -> str:
 
 
 def _load_personality_prompt() -> str:
+    prompt_parts: list[str] = []
+    directories = [
+        Path("/data/personality"),
+        Path("/app/personality"),
+        Path(__file__).resolve().parents[1] / "personality",
+    ]
+    for directory in directories:
+        if not directory.exists():
+            continue
+        for path in sorted(directory.glob("*.md")):
+            try:
+                text = path.read_text(encoding="utf-8").strip()
+            except OSError:
+                continue
+            if text:
+                prompt_parts.append(f"# {path.stem}\n{text}")
     candidates = [
         Path("/app/personality.md"),
         Path(__file__).resolve().parents[1] / "personality.md",
@@ -573,7 +735,10 @@ def _load_personality_prompt() -> str:
         except OSError:
             continue
         if text:
-            return text
+            prompt_parts.insert(0, text)
+            break
+    if prompt_parts:
+        return "\n\n".join(prompt_parts)
     return DEFAULT_SYSTEM_PROMPT
 
 
