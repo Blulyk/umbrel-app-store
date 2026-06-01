@@ -151,6 +151,16 @@ replace_once(
 )
 
 replace_once(
+    "static/js/documentLibrary.js",
+    """        const files = fileInput.files;
+        fileInput.value = '';
+""",
+    """        const files = Array.from(fileInput.files || []);
+        fileInput.value = '';
+""",
+)
+
+replace_once(
     "src/llm_core.py",
     "import httpx\nimport asyncio\n",
     "import httpx\nimport asyncio\nimport os\n",
