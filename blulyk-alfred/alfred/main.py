@@ -15,7 +15,7 @@ from alfred.config import get_settings
 from alfred.docker_control import docker_summary
 from alfred.google_oauth import GoogleOAuthController
 from alfred.memory import MemoryStore
-from alfred.schemas import AssetCommandRequest, ChatGPTOAuthSettingsRequest, ChatRequest, CodexAuthImportRequest, GoogleSettingsRequest, ToolCallRequest, WidgetGenerateRequest
+from alfred.schemas import AssetCommandRequest, ChatGPTOAuthSettingsRequest, ChatRequest, CodexAuthImportRequest, GoogleSettingsRequest, ToolCallRequest, WidgetGenerateRequest, WidgetSaveRequest
 from alfred.system_control import host_auth_journal
 from alfred.threats import scan_auth_log, scan_auth_text
 from alfred.tool_router import ToolRouter
@@ -219,7 +219,29 @@ async def generate_widget(request: WidgetGenerateRequest) -> dict[str, Any]:
     context = await gather_context()
     spec = await brain.generate_widget_spec(request.prompt, context)
     await memory.set_preference("last_widget_spec", spec)
+    await save_generated_widget(spec)
     return {"ok": True, "widget": spec}
+
+
+@app.get("/widgets")
+async def list_generated_widgets() -> dict[str, Any]:
+    return {"ok": True, "widgets": await generated_widgets()}
+
+
+@app.post("/widgets")
+async def save_widget(request: WidgetSaveRequest) -> dict[str, Any]:
+    widget = request.widget
+    if not isinstance(widget, dict):
+        raise HTTPException(status_code=400, detail="Widget invalido.")
+    await save_generated_widget(widget)
+    return {"ok": True, "widgets": await generated_widgets()}
+
+
+@app.delete("/widgets/{widget_id}")
+async def delete_widget(widget_id: str) -> dict[str, Any]:
+    widgets = [item for item in await generated_widgets() if item.get("id") != widget_id]
+    await memory.set_preference("generated_widgets", widgets)
+    return {"ok": True, "widgets": widgets}
 
 
 @app.post("/assets/{asset_id}/command")
@@ -340,6 +362,21 @@ async def maybe_execute_json_tool(message: str) -> dict[str, Any] | None:
     if not isinstance(payload, dict) or "tool" not in payload:
         return None
     return await tools.execute(str(payload["tool"]), payload.get("arguments") or {})
+
+
+async def generated_widgets() -> list[dict[str, Any]]:
+    saved = await memory.get_preference("generated_widgets")
+    return saved if isinstance(saved, list) else []
+
+
+async def save_generated_widget(spec: dict[str, Any]) -> None:
+    widgets = await generated_widgets()
+    widget = dict(spec)
+    widget_id = str(widget.get("id") or f"jarvis-{int(asyncio.get_running_loop().time() * 1000)}")
+    widget["id"] = widget_id
+    widgets = [item for item in widgets if item.get("id") != widget_id]
+    widgets.append(widget)
+    await memory.set_preference("generated_widgets", widgets[-40:])
 
 
 async def gather_context() -> dict[str, Any]:

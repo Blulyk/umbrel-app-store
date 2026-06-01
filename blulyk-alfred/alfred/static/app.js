@@ -28,6 +28,7 @@ const widgetDefaults = {
   assets: { title: "Remote Assets", x: 470, y: 110, w: 470, h: 430 },
   self: { title: "JARVIS Control", x: 120, y: -390, w: 470, h: 360 },
   terminal: { title: "Host Console", x: 120, y: 420, w: 560, h: 360 },
+  live: { title: "Live Widget", x: 120, y: 420, w: 520, h: 360 },
   custom: { title: "Dynamic Widget", x: 120, y: 420, w: 420, h: 300 }
 };
 
@@ -38,6 +39,7 @@ window.addEventListener("load", () => {
   resetView();
   loadVoices();
   refreshAll();
+  loadGeneratedWidgets();
   state.statusTimer = setInterval(refreshAll, 30000);
 });
 
@@ -60,6 +62,7 @@ function setupCanvas() {
   window.addEventListener("pointercancel", endPointerAction);
   window.addEventListener("resize", resetView);
   if ("speechSynthesis" in window) window.speechSynthesis.onvoiceschanged = loadVoices;
+  window.addEventListener("message", handleRuntimeMessage);
 }
 
 function setupCommands() {
@@ -167,6 +170,7 @@ function addWidget(type, overrides = {}) {
     id: `w${state.nextWidgetId++}`,
     type,
     title: overrides.title || defaults.title,
+    savedId: overrides.savedId || overrides.spec?.id || "",
     prompt: overrides.prompt || "",
     spec: overrides.spec || {},
     x: overrides.x ?? defaults.x,
@@ -204,6 +208,7 @@ function widgetShell(widget) {
 }
 
 function widgetContent(widget) {
+  if (widget.spec?.runtime) return renderLiveWidget(widget);
   if (widget.type === "chat") return `
     <div class="transcript" data-role="transcript" aria-live="polite"></div>
     <form class="composer" data-role="chat-form">
@@ -293,6 +298,10 @@ function widgetContent(widget) {
     </div>`;
 }
 
+function renderLiveWidget(widget) {
+  return `<iframe class="live-frame" data-role="live-frame" sandbox="allow-scripts allow-forms allow-popups allow-modals" title="${escapeHtml(widget.title)}"></iframe>`;
+}
+
 function renderGeneratedWidget(widget) {
   const custom = widget.spec.custom || {};
   const fields = Array.isArray(custom.fields) ? custom.fields : [];
@@ -372,6 +381,8 @@ function bindWidget(widget) {
       runGeneratedAction(widget, actionId);
     });
   }
+  const liveFrame = element.querySelector("[data-role='live-frame']");
+  if (liveFrame) mountLiveWidget(widget, liveFrame);
 }
 
 async function handleWidgetAction(widget, action) {
@@ -398,6 +409,9 @@ async function handleWidgetAction(widget, action) {
 function closeWidget(widget) {
   widget.element.remove();
   state.widgets = state.widgets.filter((item) => item.id !== widget.id);
+  if (widget.savedId) {
+    fetch(`/widgets/${encodeURIComponent(widget.savedId)}`, { method: "DELETE" }).catch(() => {});
+  }
 }
 
 function focusOrCreate(type) {
@@ -499,6 +513,27 @@ function scrollTranscript(widget) {
 
 async function refreshAll() {
   await Promise.allSettled([loadStatus(), loadAssets(), loadGoogleOAuthStatus()]);
+}
+
+async function loadGeneratedWidgets() {
+  try {
+    const data = await getJson("/widgets");
+    const widgets = Array.isArray(data.widgets) ? data.widgets : [];
+    widgets.forEach((spec, index) => {
+      if (!spec?.id || state.widgets.some((widget) => widget.savedId === spec.id)) return;
+      addWidget(spec.type || "live", {
+        spec,
+        title: spec.title,
+        savedId: spec.id,
+        x: 120 + index * 28,
+        y: 120 + index * 28,
+        w: spec.size?.w,
+        h: spec.size?.h
+      });
+    });
+  } catch {
+    // Generated widgets are optional; the dashboard stays usable without them.
+  }
 }
 
 async function loadWidgetData(widget) {
@@ -694,6 +729,116 @@ async function runTerminalCommand(event, widget) {
     body: JSON.stringify({ tool: "system.host_shell", arguments: { command, confirm: true, timeout: 60 } })
   });
   setRoleText(widget, "terminal-output", JSON.stringify(data.result, null, 2));
+}
+
+function mountLiveWidget(widget, frame) {
+  const runtime = widget.spec.runtime || {};
+  const bridge = runtimeBridgeScript(widget.id);
+  frame.srcdoc = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root { color-scheme: dark; font-family: "Share Tech Mono", "JetBrains Mono", Consolas, monospace; }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; min-height: 100%; margin: 0; background: transparent; color: #e8fcff; overflow: auto; }
+    body { padding: 2px; }
+    ${runtime.css || ""}
+  </style>
+</head>
+<body>
+  ${runtime.html || "<div>Widget vivo sin interfaz.</div>"}
+  <script>${bridge}<\/script>
+  <script>
+  try {
+    ${runtime.js || ""}
+  } catch (error) {
+    JARVIS.toast("Error runtime: " + error.message);
+  }
+  <\/script>
+</body>
+</html>`;
+}
+
+function runtimeBridgeScript(widgetId) {
+  return `
+window.JARVIS = (() => {
+  let seq = 0;
+  const pending = new Map();
+  window.addEventListener("message", (event) => {
+    const data = event.data || {};
+    if (!data.jarvisRuntimeResponse || data.widgetId !== ${JSON.stringify(widgetId)}) return;
+    const resolver = pending.get(data.requestId);
+    if (!resolver) return;
+    pending.delete(data.requestId);
+    if (data.ok) resolver.resolve(data.payload);
+    else resolver.reject(new Error(data.error || "JARVIS bridge error"));
+  });
+  function request(type, payload) {
+    const requestId = "r" + (++seq);
+    parent.postMessage({ jarvisRuntime: true, widgetId: ${JSON.stringify(widgetId)}, requestId, type, payload }, "*");
+    return new Promise((resolve, reject) => {
+      pending.set(requestId, { resolve, reject });
+      setTimeout(() => {
+        if (!pending.has(requestId)) return;
+        pending.delete(requestId);
+        reject(new Error("Tiempo agotado esperando a JARVIS."));
+      }, 60000);
+    });
+  }
+  return {
+    callTool: (tool, argumentsObject = {}) => request("tool", { tool, arguments: argumentsObject }),
+    chat: (message) => request("chat", { message }),
+    status: () => request("status", {}),
+    openUrl: (url) => request("openUrl", { url }),
+    toast: (text) => request("toast", { text })
+  };
+})();`;
+}
+
+async function handleRuntimeMessage(event) {
+  const data = event.data || {};
+  if (!data.jarvisRuntime) return;
+  const widget = state.widgets.find((item) => item.id === data.widgetId);
+  if (!widget) return;
+  try {
+    let payload = {};
+    if (data.type === "tool") {
+      payload = await getJson("/tools", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tool: data.payload?.tool, arguments: data.payload?.arguments || {} })
+      });
+    } else if (data.type === "chat") {
+      payload = { text: await chatText(data.payload?.message || "") };
+    } else if (data.type === "status") {
+      payload = await getJson("/status");
+    } else if (data.type === "openUrl") {
+      const url = String(data.payload?.url || "");
+      if (!/^https?:\/\//i.test(url)) throw new Error("URL bloqueada: usa http/https.");
+      window.open(url, "_blank", "noopener,noreferrer");
+      payload = { opened: true, url };
+    } else if (data.type === "toast") {
+      toast(String(data.payload?.text || ""));
+      payload = { ok: true };
+    } else {
+      throw new Error(`Operacion no soportada: ${data.type}`);
+    }
+    event.source?.postMessage({ jarvisRuntimeResponse: true, widgetId: data.widgetId, requestId: data.requestId, ok: true, payload }, "*");
+  } catch (error) {
+    event.source?.postMessage({ jarvisRuntimeResponse: true, widgetId: data.widgetId, requestId: data.requestId, ok: false, error: error.message }, "*");
+  }
+}
+
+async function chatText(message) {
+  const response = await fetch("/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message })
+  });
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+  return cleanAssistantText(await response.text());
 }
 
 async function runGeneratedAction(widget, actionId) {

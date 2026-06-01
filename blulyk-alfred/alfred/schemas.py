@@ -22,6 +22,10 @@ class WidgetGenerateRequest(BaseModel):
     existing_widgets: list[str] = Field(default_factory=list, max_length=30)
 
 
+class WidgetSaveRequest(BaseModel):
+    widget: dict[str, Any]
+
+
 class GoogleSettingsRequest(BaseModel):
     api_key: str = Field(min_length=20, max_length=400)
     model: str | None = Field(default=None, max_length=80)

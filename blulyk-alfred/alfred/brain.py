@@ -70,12 +70,14 @@ class JarvisBrain:
 
     async def generate_widget_spec(self, user_prompt: str, tool_context: dict[str, object]) -> dict[str, Any]:
         prompt = (
-            "Devuelve solo JSON valido para crear un widget funcional del dashboard JARVIS. "
-            "Si Rafael pide una herramienta nueva, NO devuelvas una tarjeta generica: crea un widget custom declarativo. "
-            "Schema base: {\"type\":\"chat|metrics|config|logs|assets|self|terminal|custom\","
+            "Devuelve solo JSON valido para crear un widget funcional del dashboard JARVIS en tiempo real. "
+            "Si Rafael pide una herramienta nueva, debes crear un live widget con HTML, CSS y JavaScript propios. "
+            "No devuelvas tarjetas estaticas ni explicaciones. "
+            "Schema base: {\"type\":\"chat|metrics|config|logs|assets|self|terminal|custom|live\","
             "\"title\":\"max 34 chars\",\"description\":\"max 140 chars\","
             "\"query\":\"orden breve\",\"refreshSeconds\":0|10|30|60,"
             "\"size\":{\"w\":300-980,\"h\":220-820},"
+            "\"runtime\":{\"html\":\"markup interno sin scripts\",\"css\":\"css scoped\",\"js\":\"javascript sin fetch directo\"},"
             "\"custom\":{\"kind\":\"search|form|tool|assistant|monitor|notes\","
             "\"fields\":[{\"id\":\"texto_sin_espacios\",\"label\":\"max 24\",\"type\":\"text|search|number|textarea|select\",\"placeholder\":\"max 60\",\"options\":[\"opcional\"]}],"
             "\"actions\":[{\"id\":\"texto_sin_espacios\",\"label\":\"max 24\",\"type\":\"open_url|ask_jarvis|tool_call|show_value\","
@@ -85,14 +87,16 @@ class JarvisBrain:
             "Herramientas permitidas para tool_call: vitals.report, threats.scan, docker.summary, docker.restart, "
             "jarvis.self_status, jarvis.self_restart, system.host_shell, memory.incidents, asset.command. "
             "Para system.host_shell o reinicios incluye arguments.confirm=true solo si Rafael pide control operativo. "
-            "Usa tipos existentes solo para paneles nativos. Para 'buscador', 'calculadora', 'formulario', 'monitor personalizado' "
-            "o cualquier idea nueva usa type=custom con fields/actions. Sin markdown.\n\n"
+            "En runtime.js usa exclusivamente la API disponible: await JARVIS.callTool(tool,args), await JARVIS.chat(message), "
+            "await JARVIS.status(), JARVIS.openUrl(url), JARVIS.toast(text). "
+            "Para 'buscador', 'calculadora', 'formulario', 'monitor personalizado', 'panel', 'botonera' o cualquier idea nueva "
+            "usa type=live con runtime completo. Usa tipos existentes solo para paneles nativos ya definidos. Sin markdown.\n\n"
             f"Contexto: {json.dumps(_tiny_context(tool_context), ensure_ascii=False)}\n"
             f"Solicitud: {user_prompt}"
         )
         response = await self._ask_codex(prompt, {})
         if not response:
-            response = await self._ask_google(prompt, {})
+            response = await self._ask_google(prompt, {}, max_output_tokens=1800)
         return _coerce_widget_spec(response, user_prompt)
 
     async def status(self) -> dict[str, Any]:
@@ -334,7 +338,7 @@ class JarvisBrain:
             "detail": detail,
         }
 
-    async def _ask_google(self, user_message: str, tool_context: dict[str, object]) -> str:
+    async def _ask_google(self, user_message: str, tool_context: dict[str, object], max_output_tokens: int = 420) -> str:
         api_key = await self._google_key()
         if not api_key:
             return ""
@@ -358,7 +362,7 @@ class JarvisBrain:
             "generationConfig": {
                 "temperature": 0.35,
                 "topP": 0.85,
-                "maxOutputTokens": 420,
+                "maxOutputTokens": max_output_tokens,
             },
         }
         headers = {"x-goog-api-key": api_key, "Content-Type": "application/json"}
@@ -504,7 +508,7 @@ def _tiny_context(context: dict[str, object]) -> dict[str, object]:
 
 
 def _coerce_widget_spec(text: str, user_prompt: str) -> dict[str, Any]:
-    allowed = {"chat", "metrics", "config", "logs", "assets", "self", "terminal", "custom"}
+    allowed = {"chat", "metrics", "config", "logs", "assets", "self", "terminal", "custom", "live"}
     payload: dict[str, Any] = {}
     if text:
         cleaned = text.strip()
@@ -521,6 +525,9 @@ def _coerce_widget_spec(text: str, user_prompt: str) -> dict[str, Any]:
     widget_type = str(payload.get("type") or fallback_type).strip().lower()
     if widget_type not in allowed:
         widget_type = fallback_type
+    runtime = _coerce_runtime_widget(payload.get("runtime"), user_prompt, widget_type)
+    if runtime:
+        widget_type = "live"
     title = str(payload.get("title") or _fallback_widget_title(user_prompt, widget_type)).strip()[:34]
     description = str(payload.get("description") or user_prompt).strip()[:140]
     query = str(payload.get("query") or user_prompt).strip()[:240]
@@ -535,6 +542,7 @@ def _coerce_widget_spec(text: str, user_prompt: str) -> dict[str, Any]:
         "query": query,
         "refreshSeconds": refresh if refresh in {0, 10, 30, 60} else 0,
         "size": _coerce_widget_size(payload.get("size"), widget_type),
+        "runtime": runtime,
         "custom": _coerce_custom_widget(payload.get("custom"), user_prompt, widget_type),
     }
 
@@ -548,6 +556,7 @@ def _coerce_widget_size(value: Any, widget_type: str) -> dict[str, int]:
         "assets": {"w": 470, "h": 430},
         "self": {"w": 470, "h": 360},
         "terminal": {"w": 560, "h": 360},
+        "live": {"w": 520, "h": 360},
         "custom": {"w": 460, "h": 340},
     }
     base = defaults.get(widget_type, defaults["custom"]).copy()
@@ -582,6 +591,125 @@ def _coerce_custom_widget(value: Any, user_prompt: str, widget_type: str) -> dic
         "fields": [item for item in fields if item],
         "actions": [item for item in actions if item],
         "notes": notes,
+    }
+
+
+def _coerce_runtime_widget(value: Any, user_prompt: str, widget_type: str) -> dict[str, str]:
+    if isinstance(value, dict):
+        html = str(value.get("html") or "").strip()
+        css = str(value.get("css") or "").strip()
+        js = str(value.get("js") or "").strip()
+        if html or css or js:
+            return {
+                "html": _strip_disallowed_runtime_html(html)[:12000],
+                "css": css[:12000],
+                "js": _strip_disallowed_runtime_js(js)[:18000],
+            }
+    if widget_type == "live" or _should_force_live_widget(user_prompt):
+        return _fallback_live_widget(user_prompt)
+    return {}
+
+
+def _strip_disallowed_runtime_html(value: str) -> str:
+    value = re.sub(r"<\s*script\b[^>]*>.*?<\s*/\s*script\s*>", "", value, flags=re.I | re.S)
+    value = re.sub(r"\son[a-z]+\s*=\s*(['\"]).*?\1", "", value, flags=re.I | re.S)
+    return value
+
+
+def _strip_disallowed_runtime_js(value: str) -> str:
+    blocked = [
+        r"\bfetch\s*\(",
+        r"\bXMLHttpRequest\b",
+        r"\blocalStorage\b",
+        r"\bsessionStorage\b",
+        r"\bdocument\.cookie\b",
+        r"\bparent\.",
+        r"\btop\.",
+        r"\bopener\.",
+    ]
+    for pattern in blocked:
+        value = re.sub(pattern, "/* blocked */", value, flags=re.I)
+    return value
+
+
+def _should_force_live_widget(prompt: str) -> bool:
+    text = prompt.lower()
+    return bool(
+        re.search(
+            r"widget|herramienta|buscador|buscar|search|calculadora|formulario|panel|monitor|botonera|temporizador|timer|nota|conversor|dashboard",
+            text,
+        )
+    )
+
+
+def _fallback_live_widget(prompt: str) -> dict[str, str]:
+    text = prompt.lower()
+    if re.search(r"busc|search|google|web", text):
+        return {
+            "html": """
+<div class="live-card">
+  <label>Busqueda web</label>
+  <div class="row">
+    <input id="query" type="search" placeholder="Escribe una consulta" autofocus>
+    <button id="search">Buscar</button>
+  </div>
+  <p id="status">Widget creado por JARVIS en tiempo real.</p>
+</div>
+""".strip(),
+            "css": """
+.live-card { display: grid; gap: 14px; height: 100%; align-content: start; }
+label { color: #00f0ff; font-size: 12px; font-weight: 800; text-transform: uppercase; }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
+input, button { min-height: 42px; border-radius: 10px; border: 1px solid rgba(0,240,255,.45); background: rgba(0,8,14,.9); color: #e8fcff; padding: 0 12px; font: inherit; }
+button { cursor: pointer; color: #001014; background: linear-gradient(90deg, #00f0ff, #00ebd4); font-weight: 900; }
+p { margin: 0; color: #7ca7b7; line-height: 1.45; }
+""".strip(),
+            "js": """
+const input = document.getElementById('query');
+const status = document.getElementById('status');
+function runSearch() {
+  const query = input.value.trim();
+  if (!query) {
+    status.textContent = 'Introduce una busqueda.';
+    return;
+  }
+  JARVIS.openUrl('https://www.google.com/search?q=' + encodeURIComponent(query));
+  status.textContent = 'Busqueda abierta: ' + query;
+}
+document.getElementById('search').addEventListener('click', runSearch);
+input.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') runSearch();
+});
+""".strip(),
+        }
+    return {
+        "html": """
+<div class="live-card">
+  <label>Orden a JARVIS</label>
+  <textarea id="request" placeholder="Escribe una orden para este widget"></textarea>
+  <button id="send">Ejecutar</button>
+  <pre id="output">Widget vivo creado por JARVIS.</pre>
+</div>
+""".strip(),
+        "css": """
+.live-card { display: grid; gap: 12px; height: 100%; }
+label { color: #00f0ff; font-size: 12px; font-weight: 800; text-transform: uppercase; }
+textarea, button, pre { border-radius: 10px; border: 1px solid rgba(0,240,255,.45); background: rgba(0,8,14,.88); color: #e8fcff; font: inherit; }
+textarea { min-height: 92px; resize: vertical; padding: 12px; }
+button { min-height: 42px; cursor: pointer; color: #001014; background: linear-gradient(90deg, #00f0ff, #00ebd4); font-weight: 900; }
+pre { min-height: 100px; margin: 0; padding: 12px; white-space: pre-wrap; overflow: auto; }
+""".strip(),
+        "js": """
+const request = document.getElementById('request');
+const output = document.getElementById('output');
+document.getElementById('send').addEventListener('click', async () => {
+  const message = request.value.trim();
+  if (!message) return;
+  output.textContent = 'Consultando a JARVIS...';
+  const result = await JARVIS.chat(message);
+  output.textContent = result.text || JSON.stringify(result, null, 2);
+});
+""".strip(),
     }
 
 
@@ -672,6 +800,8 @@ def _safe_token(value: str) -> str:
 
 def _infer_widget_type(prompt: str) -> str:
     text = prompt.lower()
+    if _should_force_live_widget(prompt):
+        return "live"
     if re.search(r"buscador|buscar|search|calculadora|formulario|widget personalizado|personalizado|crear widget|genera un widget", text):
         return "custom"
     if re.search(r"control|reinicia|actualiza|self|propio|ti mismo|jarvis", text):
@@ -700,6 +830,7 @@ def _fallback_widget_title(prompt: str, widget_type: str) -> str:
         "assets": "Remote Assets",
         "self": "JARVIS Control",
         "terminal": "Host Console",
+        "live": "Live Widget",
         "custom": "Dynamic Widget",
     }
     if widget_type != "custom":
