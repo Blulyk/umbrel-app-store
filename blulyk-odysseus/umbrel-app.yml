@@ -4,7 +4,7 @@ name: Odysseus
 tagline: Self-hosted AI workspace for chat, agents, research and documents
 icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-odysseus/icon.svg
 category: ai
-version: "1.0.5"
+version: "1.0.6"
 port: 7000
 description: >-
   Odysseus is a self-hosted AI workspace designed as a local-first alternative
@@ -34,8 +34,7 @@ defaultPassword: ""
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store
 releaseNotes: >-
-  v1.0.5 improves the Umbrel build for real daily use: email HTML can now show
-  remote and embedded images, emoji rendering defaults to visible glyphs instead
-  of text placeholders, emoji fonts are installed in the container, and local
-  Ollama/agent timeouts are increased so slower Tailscale model calls do not
-  stop halfway through multi-step work.
+  v1.0.6 fixes document/PDF imports on Umbrel by adding the missing PDF, DOCX,
+  and file-detection dependencies, raising the upload limit to 100MB, making PDF
+  page images lazy-load, and limiting automatic PDF text extraction so large
+  files open faster instead of blocking the interface.

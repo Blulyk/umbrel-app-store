@@ -12,9 +12,11 @@ RUN apt-get update \
     openssh-client \
     gosu \
     fontconfig \
+    file \
     fonts-dejavu-core \
     fonts-noto-core \
     fonts-noto-color-emoji \
+    libmagic1 \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -35,7 +37,13 @@ RUN python /tmp/umbrel-runtime-patches.py \
   && rm /tmp/umbrel-runtime-patches.py \
   && fc-cache -f
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+  && pip install --no-cache-dir \
+    PyMuPDF \
+    python-magic \
+    python-docx \
+    mammoth \
+    pdfplumber
 
 RUN mkdir -p data logs services/cache/search \
   && chmod +x docker/entrypoint.sh \

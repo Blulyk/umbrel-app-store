@@ -84,6 +84,73 @@ replace_once(
 )
 
 replace_once(
+    "src/upload_handler.py",
+    "        self.max_upload_size = 10 * 1024 * 1024  # 10MB",
+    "        self.max_upload_size = int(os.environ.get(\"ODYSSEUS_MAX_UPLOAD_MB\", \"100\")) * 1024 * 1024",
+)
+
+replace_once(
+    "src/document_processor.py",
+    """        reader = PdfReader(path)
+
+        for page_num, page in enumerate(reader.pages):
+""",
+    """        reader = PdfReader(path)
+        max_pages = int(os.environ.get("PDF_PROCESS_MAX_PAGES", "30") or "30")
+        pages = list(reader.pages)
+        selected_pages = pages[:max_pages] if max_pages > 0 else pages
+        vision_enabled = os.environ.get("PDF_PROCESS_ENABLE_VISION", "false").lower() == "true"
+
+        for page_num, page in enumerate(selected_pages):
+""",
+)
+
+replace_once(
+    "src/document_processor.py",
+    """            if images and len(page_text) < 50:
+""",
+    """            if vision_enabled and images and len(page_text) < 50:
+""",
+)
+
+replace_once(
+    "src/document_processor.py",
+    """        if pdf_text:
+            if len(pdf_text) > 15000:
+""",
+    """        if len(pages) > len(selected_pages):
+            pdf_text += f"\\n\\n[PDF extraction limited to first {len(selected_pages)} of {len(pages)} pages]"
+
+        if pdf_text:
+            if len(pdf_text) > 15000:
+""",
+)
+
+replace_once(
+    "routes/document_routes.py",
+    '            body_text = _process_pdf(pdf_path).lstrip("\\n[PDF content]:").strip()',
+    '            body_text = _process_pdf(pdf_path).removeprefix("\\n\\n[PDF content]:").strip()',
+)
+
+replace_once(
+    "routes/document_routes.py",
+    '                body_text = _process_pdf(pdf_path).lstrip("\\n[PDF content]:").strip()',
+    '                body_text = _process_pdf(pdf_path).removeprefix("\\n\\n[PDF content]:").strip()',
+)
+
+replace_once(
+    "static/js/document.js",
+    """      img.src = `${API_BASE}/api/document/${docId}/page/${page.page}.png`;
+      img.style.cssText = 'display:block;width:100%;height:100%;user-select:none;-webkit-user-drag:none;pointer-events:none;';
+""",
+    """      img.src = `${API_BASE}/api/document/${docId}/page/${page.page}.png`;
+      img.loading = 'lazy';
+      img.decoding = 'async';
+      img.style.cssText = 'display:block;width:100%;height:100%;user-select:none;-webkit-user-drag:none;pointer-events:none;';
+""",
+)
+
+replace_once(
     "src/llm_core.py",
     "import httpx\nimport asyncio\n",
     "import httpx\nimport asyncio\nimport os\n",
