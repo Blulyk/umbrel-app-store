@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     docker_control: bool = Field(False, alias="ALFRED_DOCKER_CONTROL")
     system_control: bool = Field(False, alias="JARVIS_SYSTEM_CONTROL")
     host_shell_image: str = Field("alpine:3.20", alias="JARVIS_HOST_SHELL_IMAGE")
+    public_port: int = Field(8099, alias="JARVIS_PUBLIC_PORT")
     auth_log_path: str = Field("/host/var/log/auth.log", alias="ALFRED_AUTH_LOG")
     bridge_key: str | None = Field(None, alias="ALFRED_BRIDGE_KEY")
     bridge_secret: str | None = Field(None, alias="ALFRED_BRIDGE_SECRET")

@@ -68,6 +68,22 @@ class JarvisBrain:
             "o configura Google Gemini como fallback en Sistemas > Google."
         )
 
+    async def generate_widget_spec(self, user_prompt: str, tool_context: dict[str, object]) -> dict[str, Any]:
+        prompt = (
+            "Devuelve solo JSON valido para crear un widget del dashboard JARVIS. "
+            "Schema: {\"type\":\"chat|metrics|config|logs|assets|self|terminal|custom\","
+            "\"title\":\"max 34 chars\",\"description\":\"max 140 chars\","
+            "\"query\":\"orden breve\",\"refreshSeconds\":0|10|30|60}. "
+            "Elige tipos funcionales existentes cuando encajen. Usa self para control de JARVIS, "
+            "terminal para comandos de sistema, custom para informacion general. Sin markdown.\n\n"
+            f"Contexto: {json.dumps(_tiny_context(tool_context), ensure_ascii=False)}\n"
+            f"Solicitud: {user_prompt}"
+        )
+        response = await self._ask_codex(prompt, {})
+        if not response:
+            response = await self._ask_google(prompt, {})
+        return _coerce_widget_spec(response, user_prompt)
+
     async def status(self) -> dict[str, Any]:
         google_key = bool(await self._google_key())
         google_last_status = await self.memory.get_preference("google_last_status")
@@ -231,7 +247,8 @@ class JarvisBrain:
         prompt = (
             f"{self.system_prompt}\n\n"
             "Responde solo con la respuesta final para Rafael. No incluyas trazas, comandos, JSONL, logs, "
-            "marcadores de terminal ni explicaciones sobre Codex. Si falta informacion, dilo de forma breve.\n\n"
+            "marcadores de terminal ni explicaciones sobre Codex. Se conciso: maximo 6 lineas salvo que Rafael pida detalle. "
+            "Si falta informacion, dilo de forma breve.\n\n"
             "Contexto local compacto:\n"
             + json.dumps(compact_context, ensure_ascii=False)
             + "\n\nPeticion:\n"
@@ -330,7 +347,7 @@ class JarvisBrain:
             "generationConfig": {
                 "temperature": 0.35,
                 "topP": 0.85,
-                "maxOutputTokens": 700,
+                "maxOutputTokens": 420,
             },
         }
         headers = {"x-goog-api-key": api_key, "Content-Type": "application/json"}
@@ -453,11 +470,95 @@ def _compact_context(context: dict[str, object]) -> dict[str, object]:
             "available": docker.get("available") if isinstance(docker, dict) else False,
             "running": sum(1 for item in containers if item.get("status") == "running"),
             "total": len(containers),
-            "sample": containers[:8],
+            "sample": [{"name": item.get("name"), "status": item.get("status")} for item in containers[:5]],
         },
         "assets_count": len(context.get("assets", []) if isinstance(context.get("assets"), list) else []),
-        "recent_incidents": context.get("recent_incidents", [])[:3] if isinstance(context.get("recent_incidents"), list) else [],
+        "recent_incidents": [
+            {"category": item.get("category"), "summary": item.get("summary")}
+            for item in (context.get("recent_incidents", [])[:2] if isinstance(context.get("recent_incidents"), list) else [])
+        ],
     }
+
+
+def _tiny_context(context: dict[str, object]) -> dict[str, object]:
+    vitals = context.get("vitals") if isinstance(context.get("vitals"), dict) else {}
+    docker = context.get("docker") if isinstance(context.get("docker"), dict) else {}
+    return {
+        "system": vitals.get("status"),
+        "cpu": vitals.get("cpu_percent"),
+        "ram": vitals.get("ram_percent"),
+        "docker_available": docker.get("available"),
+        "containers": len(docker.get("containers", [])) if isinstance(docker.get("containers"), list) else 0,
+    }
+
+
+def _coerce_widget_spec(text: str, user_prompt: str) -> dict[str, Any]:
+    allowed = {"chat", "metrics", "config", "logs", "assets", "self", "terminal", "custom"}
+    payload: dict[str, Any] = {}
+    if text:
+        cleaned = text.strip()
+        match = re.search(r"\{.*\}", cleaned, re.S)
+        if match:
+            cleaned = match.group(0)
+        try:
+            parsed = json.loads(cleaned)
+            if isinstance(parsed, dict):
+                payload = parsed
+        except json.JSONDecodeError:
+            payload = {}
+    fallback_type = _infer_widget_type(user_prompt)
+    widget_type = str(payload.get("type") or fallback_type).strip().lower()
+    if widget_type not in allowed:
+        widget_type = fallback_type
+    title = str(payload.get("title") or _fallback_widget_title(user_prompt, widget_type)).strip()[:34]
+    description = str(payload.get("description") or user_prompt).strip()[:140]
+    query = str(payload.get("query") or user_prompt).strip()[:240]
+    try:
+        refresh = int(payload.get("refreshSeconds") or 0)
+    except (TypeError, ValueError):
+        refresh = 0
+    return {
+        "type": widget_type,
+        "title": title or "Widget",
+        "description": description,
+        "query": query,
+        "refreshSeconds": refresh if refresh in {0, 10, 30, 60} else 0,
+    }
+
+
+def _infer_widget_type(prompt: str) -> str:
+    text = prompt.lower()
+    if re.search(r"control|reinicia|actualiza|self|propio|ti mismo|jarvis", text):
+        return "self"
+    if re.search(r"comando|terminal|shell|sistema|host", text):
+        return "terminal"
+    if re.search(r"chat|habla|pregunta|asistente|jarvis", text):
+        return "chat"
+    if re.search(r"google|oauth|openai|codex|gemini|api|config", text):
+        return "config"
+    if re.search(r"log|incidente|memoria|evento", text):
+        return "logs"
+    if re.search(r"asset|remoto|pc|almacenamiento|storage|disco remoto", text):
+        return "assets"
+    if re.search(r"cpu|ram|docker|red|network|trafico|tráfico|metrica|métrica", text):
+        return "metrics"
+    return "custom"
+
+
+def _fallback_widget_title(prompt: str, widget_type: str) -> str:
+    defaults = {
+        "chat": "JARVIS Chat",
+        "metrics": "Core Metrics",
+        "config": "Brain Link",
+        "logs": "Operational Logs",
+        "assets": "Remote Assets",
+        "self": "JARVIS Control",
+        "terminal": "Host Console",
+        "custom": "Dynamic Widget",
+    }
+    if widget_type != "custom":
+        return defaults[widget_type]
+    return re.sub(r"[^\w\sáéíóúñ]", "", prompt, flags=re.I).strip()[:34] or "Dynamic Widget"
 
 
 def _load_personality_prompt() -> str:

@@ -21,6 +21,8 @@ class ToolRouter:
             {"name": "threats.scan", "arguments": {}},
             {"name": "docker.summary", "arguments": {}},
             {"name": "docker.restart", "arguments": {"name": "container-name"}},
+            {"name": "jarvis.self_status", "arguments": {}},
+            {"name": "jarvis.self_restart", "arguments": {"confirm": True}},
             {
                 "name": "system.host_shell",
                 "arguments": {
@@ -59,6 +61,26 @@ class ToolRouter:
         if name == "docker.restart":
             result = restart_container(self.settings, str(args.get("name", "")))
             await self.memory.record_incident("info", "docker-control", f"docker.restart {args.get('name', '')}", result)
+            return {"ok": True, "result": result}
+        if name == "jarvis.self_status":
+            return {
+                "ok": True,
+                "result": {
+                    "app": "blulyk-alfred",
+                    "container": "blulyk-alfred_web_1",
+                    "docker": docker_summary(self.settings),
+                    "control": {
+                        "docker_control": self.settings.docker_control,
+                        "system_control": self.settings.system_control,
+                        "public_port": getattr(self.settings, "public_port", 8099),
+                    },
+                },
+            }
+        if name == "jarvis.self_restart":
+            if not bool(args.get("confirm", False)):
+                return {"ok": True, "result": {"ok": False, "error": "Self restart requires confirm=true."}}
+            result = restart_container(self.settings, "blulyk-alfred_web_1")
+            await self.memory.record_incident("warning", "self-control", "jarvis.self_restart", result)
             return {"ok": True, "result": result}
         if name == "system.host_shell":
             result = host_shell(

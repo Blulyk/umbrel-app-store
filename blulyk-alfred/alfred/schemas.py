@@ -17,6 +17,11 @@ class ToolCallRequest(BaseModel):
     arguments: dict[str, Any] = Field(default_factory=dict)
 
 
+class WidgetGenerateRequest(BaseModel):
+    prompt: str = Field(min_length=1, max_length=1000)
+    existing_widgets: list[str] = Field(default_factory=list, max_length=30)
+
+
 class GoogleSettingsRequest(BaseModel):
     api_key: str = Field(min_length=20, max_length=400)
     model: str | None = Field(default=None, max_length=80)

@@ -3,8 +3,8 @@ id: blulyk-alfred
 name: JARVIS
 tagline: Local JARVIS console with Codex and Gemini fallback
 category: ai
-version: "1.6.2"
-port: 8080
+version: "1.7.0"
+port: 8099
 path: ""
 icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-alfred/icon.svg
 description: >-
@@ -31,9 +31,8 @@ repo: https://github.com/Blulyk/umbrel-app-store
 support: https://github.com/Blulyk/umbrel-app-store/issues
 gallery: []
 releaseNotes: >-
-  Smooths the ARC canvas interface by fixing widget close/scroll interactions,
-  reducing expensive visual effects, moving the interface to rounded corners,
-  and cache-busting static assets so the responsive 60fps-focused UI loads
-  cleanly after update.
+  Moves JARVIS off port 8080 to 8099, adds AI-authored dashboard widgets,
+  improves trackpad and touch controls, expands self-control tools, tightens
+  token usage, and refines voice/listening behavior for the final ARC canvas.
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store

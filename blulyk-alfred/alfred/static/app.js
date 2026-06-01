@@ -1,15 +1,21 @@
-const $ = (id) => document.getElementById(id);
+﻿const $ = (id) => document.getElementById(id);
 
 const state = {
   view: { x: 0, y: 0, scale: 1 },
+  targetView: { x: 0, y: 0, scale: 1 },
   widgets: [],
   nextWidgetId: 1,
   drag: null,
   pan: null,
+  pinch: null,
   raf: 0,
+  viewRaf: 0,
   lastAssistantText: "",
   recognition: null,
   listening: false,
+  continuousListening: false,
+  activeVoiceWidget: null,
+  voices: [],
   codexLoginTimer: null,
   statusTimer: null
 };
@@ -20,6 +26,8 @@ const widgetDefaults = {
   config: { title: "Brain Link", x: -820, y: -420, w: 500, h: 520 },
   logs: { title: "Operational Logs", x: -910, y: 120, w: 470, h: 380 },
   assets: { title: "Remote Assets", x: 470, y: 110, w: 470, h: 430 },
+  self: { title: "JARVIS Control", x: 120, y: -390, w: 470, h: 360 },
+  terminal: { title: "Host Console", x: 120, y: 420, w: 560, h: 360 },
   custom: { title: "Dynamic Widget", x: 120, y: 420, w: 420, h: 300 }
 };
 
@@ -28,9 +36,7 @@ window.addEventListener("load", () => {
   setupCanvas();
   setupCommands();
   resetView();
-  addWidget("metrics");
-  addWidget("config");
-  addWidget("chat");
+  loadVoices();
   refreshAll();
   state.statusTimer = setInterval(refreshAll, 30000);
 });
@@ -51,19 +57,34 @@ function setupCanvas() {
   viewport.addEventListener("pointerdown", onCanvasPointerDown);
   window.addEventListener("pointermove", onPointerMove);
   window.addEventListener("pointerup", endPointerAction);
+  window.addEventListener("pointercancel", endPointerAction);
   window.addEventListener("resize", resetView);
+  if ("speechSynthesis" in window) window.speechSynthesis.onvoiceschanged = loadVoices;
 }
 
 function setupCommands() {
-  $("commandBar").addEventListener("submit", (event) => {
+  $("commandBar").addEventListener("submit", async (event) => {
     event.preventDefault();
     const prompt = $("widgetCommandInput").value.trim();
     if (!prompt) return;
     $("widgetCommandInput").value = "";
-    const type = inferWidgetType(prompt);
-    const widget = addWidget(type, { prompt, title: titleFromPrompt(prompt, type), x: 140, y: 140 });
-    toast(`Widget generado: ${widget.title}`);
-    if (type === "chat") {
+    toast("JARVIS estÃ¡ diseÃ±ando el widget.");
+    let spec;
+    try {
+      const data = await getJson("/widgets/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, existing_widgets: state.widgets.map((widget) => widget.type) })
+      });
+      spec = data.widget;
+    } catch {
+      const type = inferWidgetType(prompt);
+      spec = { type, title: titleFromPrompt(prompt, type), description: prompt, query: prompt, refreshSeconds: 0 };
+    }
+    const widget = addWidget(spec.type, { prompt, spec, title: spec.title, x: 140, y: 140 });
+    toast(`Widget aÃ±adido: ${widget.title}`);
+    focusWidget(widget);
+    if (spec.type === "chat") {
       const input = widget.element.querySelector("[data-role='prompt']");
       input.value = prompt;
       sendChatFromWidget(widget, prompt);
@@ -76,6 +97,7 @@ function resetView() {
   state.view.scale = window.innerWidth < 720 ? 0.72 : 0.9;
   state.view.x = viewport.clientWidth / 2;
   state.view.y = viewport.clientHeight / 2;
+  state.targetView = { ...state.view };
   scheduleWorldTransform();
 }
 
@@ -84,26 +106,35 @@ function onWheel(event) {
     return;
   }
   event.preventDefault();
-  const before = screenToWorld(event.clientX, event.clientY);
-  const delta = Math.sign(event.deltaY) * -0.08;
-  state.view.scale = clamp(state.view.scale + delta, 0.36, 1.85);
-  const after = worldToScreen(before.x, before.y);
-  state.view.x += event.clientX - after.x;
-  state.view.y += event.clientY - after.y;
-  scheduleWorldTransform();
+  if (event.ctrlKey || event.metaKey || event.altKey) {
+    zoomAt(event.clientX, event.clientY, Math.exp(-event.deltaY * 0.0028));
+    return;
+  }
+  state.targetView.x -= event.deltaX;
+  state.targetView.y -= event.deltaY;
+  animateView();
 }
 
 function onCanvasPointerDown(event) {
   if (event.target.closest(".hud-widget, .arc-core, .dock, .command-bar, .topbar")) return;
-  state.pan = { x: event.clientX, y: event.clientY, ox: state.view.x, oy: state.view.y };
+  if (event.pointerType === "touch") {
+    trackTouchPointer(event);
+    return;
+  }
+  state.pan = { x: event.clientX, y: event.clientY, ox: state.targetView.x, oy: state.targetView.y };
   $("canvasViewport").setPointerCapture(event.pointerId);
 }
 
 function onPointerMove(event) {
+  if (state.pinch && state.pinch.points.has(event.pointerId)) {
+    state.pinch.points.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    updatePinch();
+    return;
+  }
   if (state.pan) {
-    state.view.x = state.pan.ox + event.clientX - state.pan.x;
-    state.view.y = state.pan.oy + event.clientY - state.pan.y;
-    scheduleWorldTransform();
+    state.targetView.x = state.pan.ox + event.clientX - state.pan.x;
+    state.targetView.y = state.pan.oy + event.clientY - state.pan.y;
+    animateView();
     return;
   }
   if (!state.drag) return;
@@ -122,6 +153,10 @@ function onPointerMove(event) {
 }
 
 function endPointerAction() {
+  if (state.pinch) {
+    state.pinch.points.clear();
+    state.pinch = null;
+  }
   state.pan = null;
   state.drag = null;
 }
@@ -133,6 +168,7 @@ function addWidget(type, overrides = {}) {
     type,
     title: overrides.title || defaults.title,
     prompt: overrides.prompt || "",
+    spec: overrides.spec || {},
     x: overrides.x ?? defaults.x,
     y: overrides.y ?? defaults.y,
     w: overrides.w ?? defaults.w,
@@ -233,10 +269,28 @@ function widgetContent(widget) {
       <button class="mini-button" data-action="asset-command" type="button">Ejecutar</button>
     </div>
     <pre class="output" data-role="asset-output"></pre>`;
+  if (widget.type === "self") return `
+    <div class="dynamic-widget">
+      <p class="muted">${escapeHtml(widget.spec.description || "Control operativo de JARVIS")}</p>
+      <div class="control-grid">
+        <button class="mini-button" data-action="self-status" type="button">Estado propio</button>
+        <button class="mini-button danger" data-action="self-restart" type="button">Reiniciar JARVIS</button>
+      </div>
+      <pre class="output" data-role="self-output"></pre>
+    </div>`;
+  if (widget.type === "terminal") return `
+    <div class="dynamic-widget">
+      <p class="muted">${escapeHtml(widget.spec.description || "Comandos confirmados en el host Umbrel")}</p>
+      <form class="composer" data-role="terminal-form">
+        <input data-role="terminal-command" autocomplete="off" placeholder="Comando host confirmado">
+        <button class="send-button" type="submit">RUN</button>
+      </form>
+      <pre class="output" data-role="terminal-output"></pre>
+    </div>`;
   return `
     <div class="dynamic-widget">
-      <p class="muted">Solicitud original</p>
-      <strong>${escapeHtml(widget.prompt || "Widget operativo")}</strong>
+      <p class="muted">${escapeHtml(widget.spec.description || "Widget generado por JARVIS")}</p>
+      <strong>${escapeHtml(widget.prompt || widget.spec.query || "Widget operativo")}</strong>
       <div class="telemetry-lines">
         <span>STREAM: conectado al bus local</span>
         <span>RENDER: tarjeta generada en canvas</span>
@@ -277,6 +331,8 @@ function bindWidget(widget) {
   }
   const googleForm = element.querySelector("[data-role='google-form']");
   if (googleForm) googleForm.addEventListener("submit", (event) => saveGoogleSettings(event, widget));
+  const terminalForm = element.querySelector("[data-role='terminal-form']");
+  if (terminalForm) terminalForm.addEventListener("submit", (event) => runTerminalCommand(event, widget));
 }
 
 async function handleWidgetAction(widget, action) {
@@ -296,6 +352,8 @@ async function handleWidgetAction(widget, action) {
   if (action === "reload-incidents") return loadStatus();
   if (action === "load-bridge") return loadBridgeConfig(widget);
   if (action === "asset-command") return sendAssetCommand(widget);
+  if (action === "self-status") return loadSelfStatus(widget);
+  if (action === "self-restart") return restartSelf(widget);
 }
 
 function closeWidget(widget) {
@@ -305,11 +363,15 @@ function closeWidget(widget) {
 
 function focusOrCreate(type) {
   const widget = state.widgets.find((item) => item.type === type) || addWidget(type);
+  focusWidget(widget);
+}
+
+function focusWidget(widget) {
   widget.element.classList.add("focused");
   setTimeout(() => widget.element.classList.remove("focused"), 850);
-  state.view.x = $("canvasViewport").clientWidth / 2 - (widget.x + widget.w / 2) * state.view.scale;
-  state.view.y = $("canvasViewport").clientHeight / 2 - (widget.y + widget.h / 2) * state.view.scale;
-  scheduleWorldTransform();
+  state.targetView.x = $("canvasViewport").clientWidth / 2 - (widget.x + widget.w / 2) * state.targetView.scale;
+  state.targetView.y = $("canvasViewport").clientHeight / 2 - (widget.y + widget.h / 2) * state.targetView.scale;
+  animateView();
   const input = widget.element.querySelector("[data-role='prompt']");
   if (input) setTimeout(() => input.focus(), 180);
 }
@@ -561,17 +623,54 @@ async function sendAssetCommand(widget) {
   }
 }
 
+async function loadSelfStatus(widget) {
+  setRoleText(widget, "self-output", "Consultando estado propio.");
+  const data = await getJson("/tools", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tool: "jarvis.self_status", arguments: {} })
+  });
+  setRoleText(widget, "self-output", JSON.stringify(data.result, null, 2));
+}
+
+async function restartSelf(widget) {
+  setRoleText(widget, "self-output", "Reiniciando JARVIS.");
+  const data = await getJson("/tools", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tool: "jarvis.self_restart", arguments: { confirm: true } })
+  });
+  setRoleText(widget, "self-output", JSON.stringify(data.result, null, 2));
+}
+
+async function runTerminalCommand(event, widget) {
+  event.preventDefault();
+  const input = widget.element.querySelector("[data-role='terminal-command']");
+  const command = input.value.trim();
+  if (!command) return;
+  setRoleText(widget, "terminal-output", "Ejecutando en host.");
+  const data = await getJson("/tools", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tool: "system.host_shell", arguments: { command, confirm: true, timeout: 60 } })
+  });
+  setRoleText(widget, "terminal-output", JSON.stringify(data.result, null, 2));
+}
+
 function toggleDictation(widget) {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) return appendMessage(widget, "assistant", "Dictado no disponible en este navegador.");
   if (state.listening && state.recognition) {
+    state.continuousListening = false;
     state.recognition.stop();
     return;
   }
+  state.continuousListening = true;
+  state.activeVoiceWidget = widget;
   const recognition = new SpeechRecognition();
   recognition.lang = "es-ES";
   recognition.interimResults = false;
-  recognition.continuous = false;
+  recognition.continuous = true;
   recognition.onstart = () => {
     state.listening = true;
     widget.element.classList.add("recording");
@@ -579,6 +678,13 @@ function toggleDictation(widget) {
   recognition.onend = () => {
     state.listening = false;
     widget.element.classList.remove("recording");
+    if (state.continuousListening && state.activeVoiceWidget === widget) {
+      setTimeout(() => {
+        try {
+          recognition.start();
+        } catch {}
+      }, 350);
+    }
   };
   recognition.onresult = (event) => sendChatFromWidget(widget, event.results[0][0].transcript);
   state.recognition = recognition;
@@ -593,10 +699,10 @@ function speak(widget, text, force) {
   stopVoice();
   const utterance = new SpeechSynthesisUtterance(cleanText);
   utterance.lang = /[áéíóúñ¿¡]/i.test(cleanText) ? "es-ES" : "en-GB";
-  utterance.rate = 0.88;
-  utterance.pitch = 0.62;
-  const voices = window.speechSynthesis.getVoices();
-  const preferredNames = ["google uk english male", "microsoft george", "microsoft david", "daniel", "thomas", "alex"];
+  utterance.rate = 0.82;
+  utterance.pitch = 0.45;
+  const voices = state.voices.length ? state.voices : window.speechSynthesis.getVoices();
+  const preferredNames = ["pablo", "jorge", "alvaro", "álvaro", "diego", "microsoft pablo", "microsoft alvaro", "google uk english male", "microsoft george", "microsoft david", "daniel", "thomas", "alex"];
   const preferred = voices.find((voice) => preferredNames.some((name) => voice.name.toLowerCase().includes(name)))
     || voices.find((voice) => voice.lang === utterance.lang)
     || voices.find((voice) => voice.lang.startsWith(utterance.lang.slice(0, 2)));
@@ -606,7 +712,12 @@ function speak(widget, text, force) {
 
 function stopVoice() {
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+  state.continuousListening = false;
   if (state.recognition && state.listening) state.recognition.stop();
+}
+
+function loadVoices() {
+  if ("speechSynthesis" in window) state.voices = window.speechSynthesis.getVoices();
 }
 
 function scheduleWorldTransform() {
@@ -615,6 +726,64 @@ function scheduleWorldTransform() {
     state.raf = 0;
     $("canvasWorld").style.transform = `translate3d(${state.view.x}px, ${state.view.y}px, 0) scale(${state.view.scale})`;
   });
+}
+
+function animateView() {
+  if (state.viewRaf) return;
+  const tick = () => {
+    state.view.x += (state.targetView.x - state.view.x) * 0.28;
+    state.view.y += (state.targetView.y - state.view.y) * 0.28;
+    state.view.scale += (state.targetView.scale - state.view.scale) * 0.22;
+    scheduleWorldTransform();
+    const settled = Math.abs(state.targetView.x - state.view.x) < 0.2
+      && Math.abs(state.targetView.y - state.view.y) < 0.2
+      && Math.abs(state.targetView.scale - state.view.scale) < 0.002;
+    if (settled) {
+      state.view = { ...state.targetView };
+      scheduleWorldTransform();
+      state.viewRaf = 0;
+      return;
+    }
+    state.viewRaf = requestAnimationFrame(tick);
+  };
+  state.viewRaf = requestAnimationFrame(tick);
+}
+
+function zoomAt(clientX, clientY, factor) {
+  const before = screenToWorld(clientX, clientY);
+  state.targetView.scale = clamp(state.targetView.scale * factor, 0.42, 1.7);
+  const rect = $("canvasViewport").getBoundingClientRect();
+  state.targetView.x = clientX - rect.left - before.x * state.targetView.scale;
+  state.targetView.y = clientY - rect.top - before.y * state.targetView.scale;
+  animateView();
+}
+
+function trackTouchPointer(event) {
+  if (!state.pinch) state.pinch = { points: new Map(), startDistance: 0, startScale: state.targetView.scale };
+  state.pinch.points.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  $("canvasViewport").setPointerCapture(event.pointerId);
+  if (state.pinch.points.size === 1) {
+    state.pan = { x: event.clientX, y: event.clientY, ox: state.targetView.x, oy: state.targetView.y };
+  }
+  if (state.pinch.points.size === 2) {
+    const points = [...state.pinch.points.values()];
+    state.pinch.startDistance = distance(points[0], points[1]);
+    state.pinch.startScale = state.targetView.scale;
+    state.pan = null;
+  }
+}
+
+function updatePinch() {
+  const points = [...state.pinch.points.values()];
+  if (points.length < 2) return;
+  const current = distance(points[0], points[1]);
+  const center = { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 };
+  zoomAt(center.x, center.y, current / Math.max(state.pinch.startDistance, 1));
+  state.pinch.startDistance = current;
+}
+
+function distance(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
 function scheduleWidgetTransform(widget) {
@@ -646,17 +815,19 @@ function worldToScreen(x, y) {
 
 function inferWidgetType(prompt) {
   const text = prompt.toLowerCase();
+  if (/(control|reinicia|actualiza|self|propio|ti mismo)/.test(text)) return "self";
+  if (/(comando|terminal|shell|sistema|host)/.test(text)) return "terminal";
   if (/(chat|habla|pregunta|asistente|jarvis)/.test(text)) return "chat";
   if (/(google|oauth|openai|codex|gemini|api|config)/.test(text)) return "config";
   if (/(log|incidente|memoria|evento)/.test(text)) return "logs";
   if (/(asset|remoto|pc|almacenamiento|storage|disco remoto)/.test(text)) return "assets";
-  if (/(cpu|ram|docker|red|network|trafico|tráfico|metrica|métrica)/.test(text)) return "metrics";
+  if (/(cpu|ram|docker|red|network|trafico|trÃ¡fico|metrica|mÃ©trica)/.test(text)) return "metrics";
   return "custom";
 }
 
 function titleFromPrompt(prompt, type) {
   if (type !== "custom") return widgetDefaults[type].title;
-  const clean = prompt.replace(/[^\w\sáéíóúñ]/gi, "").trim();
+  const clean = prompt.replace(/[^\w\sÃ¡Ã©Ã­Ã³ÃºÃ±]/gi, "").trim();
   return clean ? clean.slice(0, 34) : "Dynamic Widget";
 }
 
@@ -693,7 +864,7 @@ function cleanAssistantText(text) {
 
 function isTerminalNoise(line) {
   const lower = line.toLowerCase();
-  if ([">", "$", "❯"].includes(line)) return true;
+  if ([">", "$", "â¯"].includes(line)) return true;
   if (/^[-_|+=~: .[\]()0-9]{12,}$/.test(line)) return true;
   return ["msg=interrupt", "/queue", "/bg", "/steer", "ctrl+c", "tokens", "private telemetry", "current local telemetry", "codex exec"].some((fragment) => lower.includes(fragment));
 }
@@ -719,3 +890,4 @@ function toast(message) {
   $("toast").classList.add("visible");
   setTimeout(() => $("toast").classList.remove("visible"), 2600);
 }
+

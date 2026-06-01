@@ -15,7 +15,7 @@ from alfred.config import get_settings
 from alfred.docker_control import docker_summary
 from alfred.google_oauth import GoogleOAuthController
 from alfred.memory import MemoryStore
-from alfred.schemas import AssetCommandRequest, ChatGPTOAuthSettingsRequest, ChatRequest, CodexAuthImportRequest, GoogleSettingsRequest, ToolCallRequest
+from alfred.schemas import AssetCommandRequest, ChatGPTOAuthSettingsRequest, ChatRequest, CodexAuthImportRequest, GoogleSettingsRequest, ToolCallRequest, WidgetGenerateRequest
 from alfred.system_control import host_auth_journal
 from alfred.threats import scan_auth_log, scan_auth_text
 from alfred.tool_router import ToolRouter
@@ -178,7 +178,7 @@ async def vitals() -> dict[str, object]:
 
 @app.get("/threats")
 async def threats() -> dict[str, object]:
-    payload = scan_auth_log(settings.auth_log_path)
+    payload = await threat_context()
     if payload["status"] == "Anomalous":
         await memory.record_incident(
             severity="warning",
@@ -212,6 +212,14 @@ async def list_tools() -> list[dict[str, Any]]:
 @app.post("/tools")
 async def call_tool(request: ToolCallRequest) -> dict[str, Any]:
     return await tools.execute(request.tool, request.arguments)
+
+
+@app.post("/widgets/generate")
+async def generate_widget(request: WidgetGenerateRequest) -> dict[str, Any]:
+    context = await gather_context()
+    spec = await brain.generate_widget_spec(request.prompt, context)
+    await memory.set_preference("last_widget_spec", spec)
+    return {"ok": True, "widget": spec}
 
 
 @app.post("/assets/{asset_id}/command")

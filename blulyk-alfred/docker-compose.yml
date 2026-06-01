@@ -7,7 +7,7 @@ services:
       APP_PORT: 8080
 
   web:
-    image: ghcr.io/blulyk/alfred-umbrel:1.6.2
+    image: ghcr.io/blulyk/alfred-umbrel:1.7.0
     container_name: blulyk-alfred_web_1
     restart: on-failure
     stop_grace_period: 1m
@@ -35,6 +35,7 @@ services:
       ALFRED_DOCKER_CONTROL: "true"
       JARVIS_SYSTEM_CONTROL: "true"
       JARVIS_HOST_SHELL_IMAGE: "${JARVIS_HOST_SHELL_IMAGE:-alpine:3.20}"
+      JARVIS_PUBLIC_PORT: "8099"
       ALFRED_AUTH_LOG: "/host/var/log/auth.log"
       ALFRED_BRIDGE_SECRET: "${APP_SEED}"
     depends_on:
