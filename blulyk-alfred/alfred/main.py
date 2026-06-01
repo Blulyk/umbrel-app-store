@@ -219,7 +219,7 @@ async def generate_widget(request: WidgetGenerateRequest) -> dict[str, Any]:
     context = await gather_context()
     spec = await brain.generate_widget_spec(request.prompt, context)
     await memory.set_preference("last_widget_spec", spec)
-    await save_generated_widget(spec)
+    spec = await save_generated_widget(spec)
     return {"ok": True, "widget": spec}
 
 
@@ -369,7 +369,7 @@ async def generated_widgets() -> list[dict[str, Any]]:
     return saved if isinstance(saved, list) else []
 
 
-async def save_generated_widget(spec: dict[str, Any]) -> None:
+async def save_generated_widget(spec: dict[str, Any]) -> dict[str, Any]:
     widgets = await generated_widgets()
     widget = dict(spec)
     widget_id = str(widget.get("id") or f"jarvis-{int(asyncio.get_running_loop().time() * 1000)}")
@@ -377,6 +377,7 @@ async def save_generated_widget(spec: dict[str, Any]) -> None:
     widgets = [item for item in widgets if item.get("id") != widget_id]
     widgets.append(widget)
     await memory.set_preference("generated_widgets", widgets[-40:])
+    return widget
 
 
 async def gather_context() -> dict[str, Any]:

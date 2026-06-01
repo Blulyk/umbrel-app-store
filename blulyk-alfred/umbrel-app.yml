@@ -3,7 +3,7 @@ id: blulyk-alfred
 name: JARVIS
 tagline: Local JARVIS console with Codex and Gemini fallback
 category: ai
-version: "1.7.2"
+version: "1.7.3"
 port: 8099
 path: ""
 icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-alfred/icon.svg
