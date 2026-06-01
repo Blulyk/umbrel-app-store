@@ -178,6 +178,68 @@ replace_once(
 
 replace_once(
     "static/js/documentLibrary.js",
+    """        body: JSON.stringify({
+          session_id: sessionId,
+          // Preserve the source's type; default to markdown when unknown
+""",
+    """        body: JSON.stringify({
+          session_id: sessionId,
+          title: baseTitle,
+          // Preserve the source's type; default to markdown when unknown
+""",
+)
+
+replace_once(
+    "static/js/document.js",
+    """    // Hide version panel on switch
+    const vp = document.getElementById('doc-version-panel');
+""",
+    """    // PDF-backed docs share a single rendered pane in the editor shell.
+    // Rebind that pane whenever the active tab changes so cloned PDFs can sit
+    // side-by-side as separate tabs instead of showing a stale viewer.
+    if (isPdf) {
+      const explicitPdfState = _pdfViewState.get(docId);
+      if (explicitPdfState !== false) {
+        _setPdfViewActive(true);
+        if (langSelect) langSelect.value = 'pdf';
+      }
+    } else {
+      const pdfPane = document.getElementById('doc-pdf-view');
+      const editorWrap = document.getElementById('doc-editor-wrap');
+      if (pdfPane) {
+        const savedPill = document.getElementById('doc-pdf-save-pill');
+        pdfPane.style.display = 'none';
+        pdfPane.innerHTML = '';
+        if (savedPill) pdfPane.appendChild(savedPill);
+      }
+      if (editorWrap) editorWrap.style.display = '';
+      document.getElementById('doc-pdf-view-btn')?.classList.remove('active');
+    }
+
+    // Hide version panel on switch
+    const vp = document.getElementById('doc-version-panel');
+""",
+)
+
+replace_once(
+    "static/js/document.js",
+    """    activeDocId = docId;
+    clearSelection();
+    const doc = docs.get(docId);
+""",
+    """    if (_pdfPaneSaveTimer) {
+      clearTimeout(_pdfPaneSaveTimer);
+      _savePdfPaneToMarkdown();
+    }
+
+    activeDocId = docId;
+    clearSelection();
+    const doc = docs.get(docId);
+""",
+)
+
+replace_once(
+    "static/js/documentLibrary.js",
     """        const files = fileInput.files;
         fileInput.value = '';
 """,

@@ -4,7 +4,7 @@ name: Odysseus
 tagline: Self-hosted AI workspace for chat, agents, research and documents
 icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-odysseus/icon.svg
 category: ai
-version: "1.0.9"
+version: "1.0.10"
 port: 7000
 description: >-
   Odysseus is a self-hosted AI workspace designed as a local-first alternative
@@ -34,6 +34,6 @@ defaultPassword: ""
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store
 releaseNotes: >-
-  v1.0.9 disables Umbrel proxy authentication on Odysseus' app proxy so direct
-  Tailscale/LAN access to port 7000 reaches Odysseus itself instead of Umbrel's
-  shell page.
+  v1.0.10 fixes cloned PDF documents in the document sidebar. PDF clones keep
+  their title, open as distinct tabs, and the PDF viewer is rebound when
+  switching between PDF tabs so it no longer shows stale or bugged previews.
