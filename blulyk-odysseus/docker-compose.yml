@@ -12,10 +12,8 @@ services:
     restart: unless-stopped
     stop_grace_period: 1m
     depends_on:
-      searxng:
-        condition: service_healthy
-      chromadb:
-        condition: service_started
+      - searxng
+      - chromadb
     environment:
       APP_PORT: "7000"
       AUTH_ENABLED: "false"
@@ -67,14 +65,7 @@ services:
       SEARXNG_SECRET: "${APP_SEED}"
     volumes:
       - "${APP_DATA_DIR}/searxng:/etc/searxng"
-      - "./config/searxng/settings.yml:/tmp/searxng-settings.yml.template:ro"
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/', timeout=5).read(1)\""]
-      interval: 5s
-      timeout: 6s
-      retries: 20
-      start_period: 10s
-
+      - "${APP_DATA_DIR}/config/searxng/settings.yml:/tmp/searxng-settings.yml.template:ro"
   ntfy:
     image: docker.io/binwiederhier/ntfy
     container_name: blulyk-odysseus_ntfy_1

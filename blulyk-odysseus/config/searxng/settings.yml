@@ -7,3 +7,7 @@ search:
   formats:
     - html
     - json
+
+default_doi_resolver: "https://doi.org/"
+doi_resolvers:
+  doi.org: "https://doi.org/"

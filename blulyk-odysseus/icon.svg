@@ -1,16 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Odysseus">
-  <defs>
-    <linearGradient id="g" x1="36" y1="20" x2="220" y2="236" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#101827"/>
-      <stop offset="0.52" stop-color="#271346"/>
-      <stop offset="1" stop-color="#0f766e"/>
-    </linearGradient>
-  </defs>
-  <rect width="256" height="256" rx="48" fill="url(#g)"/>
-  <circle cx="128" cy="128" r="78" fill="none" stroke="#f6e7c8" stroke-width="12"/>
-  <path d="M83 143c18 25 72 25 90 0" fill="none" stroke="#f6e7c8" stroke-width="12" stroke-linecap="round"/>
-  <circle cx="101" cy="105" r="11" fill="#f6e7c8"/>
-  <circle cx="155" cy="105" r="11" fill="#f6e7c8"/>
-  <path d="M128 42v31M128 183v31M42 128h31M183 128h31" stroke="#64f0d3" stroke-width="10" stroke-linecap="round"/>
-  <path d="M73 73l22 22M161 161l22 22M183 73l-22 22M95 161l-22 22" stroke="#f7c948" stroke-width="8" stroke-linecap="round" opacity="0.9"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Odysseus">
+  <path d="M16 4L16 22L6 22Z" fill="#e06c75"/>
+  <path d="M16 8L16 22L24 22Z" fill="#e06c75" opacity="0.6"/>
+  <path d="M4 24Q10 20 16 24Q22 28 28 24" stroke="#e06c75" stroke-width="2.5" fill="none" stroke-linecap="round"/>
 </svg>
