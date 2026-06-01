@@ -4,7 +4,7 @@ name: Odysseus
 tagline: Self-hosted AI workspace for chat, agents, research and documents
 icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-odysseus/icon.svg
 category: ai
-version: "1.0.2"
+version: "1.0.3"
 port: 7000
 description: >-
   Odysseus is a self-hosted AI workspace designed as a local-first alternative
@@ -34,6 +34,7 @@ defaultPassword: ""
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store
 releaseNotes: >-
-  v1.0.2 removes the bundled SearXNG sidecar that caused Umbrel installs to
-  fail during early compose startup, keeping the install path to Odysseus,
-  ChromaDB, and ntfy only. The app keeps the official Odysseus sailboat mark.
+  v1.0.3 fixes the Umbrel single-sign-on mode after Odysseus admin setup. When
+  Umbrel is already protecting the app, Odysseus now treats the configured admin
+  as the local user instead of redirecting to its internal login screen in a
+  loop.

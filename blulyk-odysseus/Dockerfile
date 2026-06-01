@@ -22,6 +22,10 @@ RUN git clone --depth 1 --branch "${ODYSSEUS_REF}" "${ODYSSEUS_REPO}" /tmp/odyss
   && cp -a /tmp/odysseus/. /app/ \
   && rm -rf /tmp/odysseus /app/.git
 
+COPY umbrel-auth-bypass.py /tmp/umbrel-auth-bypass.py
+RUN python /tmp/umbrel-auth-bypass.py \
+  && rm /tmp/umbrel-auth-bypass.py
+
 RUN pip install --no-cache-dir -r requirements.txt
 
 RUN mkdir -p data logs services/cache/search \
