@@ -4,7 +4,7 @@ name: Odysseus
 tagline: Self-hosted AI workspace for chat, agents, research and documents
 icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-odysseus/icon.svg
 category: ai
-version: "1.0.1"
+version: "1.0.2"
 port: 7000
 description: >-
   Odysseus is a self-hosted AI workspace designed as a local-first alternative
@@ -13,10 +13,10 @@ description: >-
   calendar features, and mobile/PWA support.
 
 
-  This Umbrel package runs Odysseus with its bundled ChromaDB vector store,
-  SearXNG search service, and ntfy notification service. Application data,
-  logs, SSH keys, Hugging Face cache, and locally installed model-serving tools
-  are persisted in the app data directory.
+  This Umbrel package runs Odysseus with a bundled ChromaDB vector store and
+  ntfy notification service. Application data, logs, SSH keys, Hugging Face
+  cache, and locally installed model-serving tools are persisted in the app
+  data directory.
 
 
   Odysseus is exposed through Umbrel's authenticated app proxy. No service ports
@@ -34,7 +34,6 @@ defaultPassword: ""
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store
 releaseNotes: >-
-  v1.0.1 fixes first install by making Odysseus start independently of the
-  auxiliary SearXNG healthcheck, updates the SearXNG template for current
-  default DOI resolver settings, and replaces the provisional icon with the
-  official Odysseus sailboat mark from the project website.
+  v1.0.2 removes the bundled SearXNG sidecar that caused Umbrel installs to
+  fail during early compose startup, keeping the install path to Odysseus,
+  ChromaDB, and ntfy only. The app keeps the official Odysseus sailboat mark.
