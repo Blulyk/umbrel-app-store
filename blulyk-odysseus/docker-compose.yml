@@ -5,6 +5,7 @@ services:
     environment:
       APP_HOST: blulyk-odysseus_web_1
       APP_PORT: 7000
+      PROXY_AUTH_ADD: "false"
 
   web:
     image: ghcr.io/blulyk/odysseus-umbrel:latest
