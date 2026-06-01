@@ -11,6 +11,10 @@ RUN apt-get update \
     tmux \
     openssh-client \
     gosu \
+    fontconfig \
+    fonts-dejavu-core \
+    fonts-noto-core \
+    fonts-noto-color-emoji \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -25,6 +29,11 @@ RUN git clone --depth 1 --branch "${ODYSSEUS_REF}" "${ODYSSEUS_REPO}" /tmp/odyss
 COPY umbrel-auth-bypass.py /tmp/umbrel-auth-bypass.py
 RUN python /tmp/umbrel-auth-bypass.py \
   && rm /tmp/umbrel-auth-bypass.py
+
+COPY umbrel-runtime-patches.py /tmp/umbrel-runtime-patches.py
+RUN python /tmp/umbrel-runtime-patches.py \
+  && rm /tmp/umbrel-runtime-patches.py \
+  && fc-cache -f
 
 RUN pip install --no-cache-dir -r requirements.txt
 

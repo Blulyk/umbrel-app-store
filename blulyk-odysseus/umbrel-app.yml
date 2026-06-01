@@ -4,7 +4,7 @@ name: Odysseus
 tagline: Self-hosted AI workspace for chat, agents, research and documents
 icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-odysseus/icon.svg
 category: ai
-version: "1.0.4"
+version: "1.0.5"
 port: 7000
 description: >-
   Odysseus is a self-hosted AI workspace designed as a local-first alternative
@@ -34,6 +34,8 @@ defaultPassword: ""
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store
 releaseNotes: >-
-  v1.0.4 adds support for reaching Ollama and other HTTP model endpoints over
-  the Umbrel Tailscale app's local outbound proxy, while keeping internal
-  Odysseus services on the normal Docker network.
+  v1.0.5 improves the Umbrel build for real daily use: email HTML can now show
+  remote and embedded images, emoji rendering defaults to visible glyphs instead
+  of text placeholders, emoji fonts are installed in the container, and local
+  Ollama/agent timeouts are increased so slower Tailscale model calls do not
+  stop halfway through multi-step work.
