@@ -20,6 +20,14 @@ class Settings(BaseSettings):
     cpu_temp_critical: float = Field(90.0, alias="ALFRED_CPU_TEMP_CRITICAL")
     ram_pressure_caution: float = Field(85.0, alias="ALFRED_RAM_PRESSURE_CAUTION")
     disk_pressure_caution: float = Field(90.0, alias="ALFRED_DISK_PRESSURE_CAUTION")
+    codex_home: str = Field("/data/codex", alias="CODEX_HOME")
+    codex_bin: str = Field("codex", alias="JARVIS_CODEX_BIN")
+    codex_model: str | None = Field(None, alias="JARVIS_CODEX_MODEL")
+    codex_timeout_seconds: int = Field(55, alias="JARVIS_CODEX_TIMEOUT_SECONDS")
+    google_api_key: str | None = Field(None, alias="GOOGLE_API_KEY")
+    google_model: str = Field("gemini-2.5-flash-lite", alias="JARVIS_GOOGLE_MODEL")
+    google_base_url: str = Field("https://generativelanguage.googleapis.com/v1beta", alias="JARVIS_GOOGLE_BASE_URL")
+    system_control: bool = Field(False, alias="JARVIS_SYSTEM_CONTROL")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

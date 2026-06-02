@@ -30,10 +30,12 @@ async function boot() {
   resetView();
   await loadLayout();
   await refreshStatus();
+  await refreshBrainStatus();
   await loadAudit();
   renderInspector("chat");
   renderHints();
   setInterval(refreshStatus, 30000);
+  setInterval(refreshBrainStatus, 45000);
 }
 
 function bindChrome() {
@@ -77,6 +79,19 @@ async function refreshStatus() {
   } catch {
     $("systemState").textContent = "Offline";
     setCoreStatus("error");
+  }
+}
+
+async function refreshBrainStatus() {
+  try {
+    const brain = await getJson("/brain/status");
+    const primary = brain.primary || {};
+    const fallback = brain.fallback || {};
+    const label = primary.state === "ready" ? "Codex ready" : fallback.state === "ready" || fallback.state === "configured" ? "Gemini fallback" : "Brain setup";
+    $("modelState").textContent = label;
+    $("modelState").title = `${primary.detail || ""} ${fallback.detail || ""}`.trim();
+  } catch {
+    $("modelState").textContent = "Brain offline";
   }
 }
 
@@ -197,7 +212,13 @@ function renderWidgetBody(widget) {
 }
 
 function bindWidgetElement(element, widget) {
-  element.addEventListener("pointerdown", () => selectWidget(widget.id));
+  element.addEventListener("pointerdown", (event) => {
+    if (isInteractiveTarget(event.target) || event.target.closest("[data-drag-handle], [data-resize-handle]")) return;
+    selectWidget(widget.id);
+  });
+  element.querySelectorAll(".widget-actions button").forEach((button) => {
+    button.addEventListener("pointerdown", (event) => event.stopPropagation());
+  });
   element.querySelector("[data-drag-handle]").addEventListener("pointerdown", (event) => {
     if (state.readonly || widget.layout.locked || event.target.closest("button")) return;
     state.drag = { id: widget.id, x: event.clientX, y: event.clientY, ox: widget.layout.x, oy: widget.layout.y };
@@ -211,8 +232,16 @@ function bindWidgetElement(element, widget) {
   });
   element.addEventListener("click", (event) => {
     const action = event.target.closest("[data-widget-action]")?.dataset.widgetAction;
-    if (action) handleWidgetChromeAction(widget, action);
+    if (action) {
+      event.preventDefault();
+      event.stopPropagation();
+      handleWidgetChromeAction(widget, action);
+    }
   });
+  bindWidgetBodyActions(element, widget);
+}
+
+function bindWidgetBodyActions(element, widget) {
   element.querySelectorAll("[data-run-action]").forEach((button) => {
     button.addEventListener("click", () => runWidgetAction(widget, button.dataset.runAction));
   });
@@ -221,6 +250,9 @@ function bindWidgetElement(element, widget) {
   });
   element.querySelectorAll("[data-form-submit]").forEach((button) => {
     button.addEventListener("click", () => toast("Entrada manual registrada localmente."));
+  });
+  element.querySelectorAll("[data-form-action]").forEach((button) => {
+    button.addEventListener("click", () => runFormAction(widget, button.dataset.formAction));
   });
   element.querySelectorAll("[data-run-command]").forEach((button) => {
     button.addEventListener("click", () => executeCommand(button.dataset.runCommand));
@@ -239,6 +271,7 @@ function selectWidget(id) {
 }
 
 async function handleWidgetChromeAction(widget, action) {
+  state.selectedId = widget.id;
   if (action === "refresh") return refreshWidgetData(widget, true);
   if (action === "close") return deleteWidget(widget.id);
   if (action === "duplicate") return duplicateWidget(widget.id);
@@ -311,7 +344,7 @@ async function refreshWidgetData(widget, manual = false) {
     if (frame) {
       frame.querySelector("[data-widget-body]").innerHTML = renderWidgetBody(widget);
       frame.querySelector("[data-last-updated]").textContent = `Actualizado ${new Date().toLocaleTimeString()}`;
-      bindWidgetElement(frame, widget);
+      bindWidgetBodyActions(frame, widget);
     }
     if (manual) toast(`${widget.title} actualizado.`);
   } catch (error) {
@@ -478,6 +511,17 @@ function renderInspector(panel, data = null) {
   if (panel === "config") {
     $("inspectorTitle").textContent = "Configuración";
     body.innerHTML = `
+      <section class="config-group">
+        <h3>Mente JARVIS</h3>
+        <p id="brainSummary" class="muted">Comprobando Codex/Gemini...</p>
+        <label>Google API key <input id="googleApiKey" type="password" placeholder="AIza..."></label>
+        <label>Modelo Gemini <input id="googleModel" type="text" placeholder="gemini-2.5-flash-lite"></label>
+        <button class="text-button" id="saveGoogleKey">Guardar Google</button>
+        <button class="text-button" id="testGoogleKey">Probar Gemini</button>
+        <label>Codex auth.json <textarea id="codexAuthJson" placeholder="Pega aqui el auth.json de Codex"></textarea></label>
+        <button class="text-button" id="importCodexAuth">Importar Codex auth.json</button>
+        <button class="text-button" id="startCodexLogin">Iniciar sesion Codex</button>
+      </section>
       <label class="toggle"><input id="readonlyToggle" type="checkbox" ${state.readonly ? "checked" : ""}> Modo solo lectura</label>
       <label class="toggle"><input id="gridToggle" type="checkbox" ${state.layout.canvas.grid ? "checked" : ""}> Mostrar grid</label>
       <label>Intensidad visual <input id="visualRange" type="range" min="0.2" max="1" step="0.05" value="${state.visualIntensity}"></label>
@@ -491,6 +535,11 @@ function renderInspector(panel, data = null) {
     $("exportLayout").addEventListener("click", () => $("layoutBuffer").value = JSON.stringify(state.layout, null, 2));
     $("importLayout").addEventListener("click", importLayout);
     $("clearCanvas").addEventListener("click", () => renderInspector("confirm", { message: "¿Limpiar todos los widgets del canvas?" }));
+    $("saveGoogleKey").addEventListener("click", saveGoogleKey);
+    $("testGoogleKey").addEventListener("click", testGoogleKey);
+    $("importCodexAuth").addEventListener("click", importCodexAuth);
+    $("startCodexLogin").addEventListener("click", startCodexLogin);
+    updateBrainSummary();
     return;
   }
   if (panel === "memory" || panel === "tools") {
@@ -579,7 +628,130 @@ function checklistWidget(widget) {
 
 function formWidget(widget) {
   const fields = widget.config.fields || [];
-  return `<div class="form-widget">${fields.map((field) => `<label>${escapeHtml(field.label)}<input type="${field.type === "url" ? "url" : "text"}" placeholder="${escapeHtml(field.label)}"></label>`).join("")}<button data-form-submit>Guardar</button></div>`;
+  const actions = widget.config.actions || [];
+  return `<div class="form-widget">
+    ${fields.map((field) => formField(field)).join("")}
+    <div class="form-actions">
+      ${actions.map((action) => `<button type="button" data-form-action="${escapeHtml(action.id)}">${escapeHtml(action.label || "Ejecutar")}</button>`).join("") || `<button type="button" data-form-submit>Guardar</button>`}
+    </div>
+    <output data-form-output>${escapeHtml((widget.config.notes || []).join(" "))}</output>
+  </div>`;
+}
+
+async function updateBrainSummary() {
+  try {
+    const brain = await getJson("/brain/status");
+    const primary = brain.primary || {};
+    const fallback = brain.fallback || {};
+    const summary = `Codex: ${primary.state || "unknown"} · Gemini: ${fallback.state || "unknown"}`;
+    const node = $("brainSummary");
+    if (node) node.textContent = summary;
+    await refreshBrainStatus();
+  } catch (error) {
+    const node = $("brainSummary");
+    if (node) node.textContent = error.message;
+  }
+}
+
+async function saveGoogleKey() {
+  const apiKey = $("googleApiKey").value.trim();
+  const model = $("googleModel").value.trim();
+  if (!apiKey) return toast("Introduce la API key de Google.");
+  await getJson("/brain/google-key", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ api_key: apiKey, model: model || null })
+  });
+  $("googleApiKey").value = "";
+  toast("Google Gemini guardado.");
+  await updateBrainSummary();
+}
+
+async function testGoogleKey() {
+  const data = await getJson("/brain/google-test", { method: "POST" });
+  toast(data.response || data.detail || "Prueba ejecutada.");
+  await updateBrainSummary();
+}
+
+async function importCodexAuth() {
+  const authJson = $("codexAuthJson").value.trim();
+  if (!authJson) return toast("Pega el auth.json de Codex.");
+  await getJson("/brain/codex-auth", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ auth_json: authJson })
+  });
+  $("codexAuthJson").value = "";
+  toast("Codex auth.json importado.");
+  await updateBrainSummary();
+}
+
+async function startCodexLogin() {
+  const data = await getJson("/brain/codex-login", { method: "POST" });
+  if (data.url) window.open(data.url, "_blank", "noopener,noreferrer");
+  toast(data.code ? `Codigo Codex: ${data.code}` : data.detail || data.state || "Login Codex iniciado.");
+  await updateBrainSummary();
+}
+
+function formField(field) {
+  const id = escapeHtml(field.id || field.label || "value");
+  const label = escapeHtml(field.label || id);
+  const placeholder = escapeHtml(field.placeholder || "");
+  if (field.type === "textarea") {
+    return `<label>${label}<textarea data-form-field="${id}" placeholder="${placeholder}"></textarea></label>`;
+  }
+  if (field.type === "select") {
+    const options = (field.options || []).map((option) => `<option>${escapeHtml(option)}</option>`).join("");
+    return `<label>${label}<select data-form-field="${id}">${options}</select></label>`;
+  }
+  const type = ["search", "number", "url", "text"].includes(field.type) ? field.type : "text";
+  return `<label>${label}<input data-form-field="${id}" type="${type}" placeholder="${placeholder}"></label>`;
+}
+
+async function runFormAction(widget, actionId) {
+  const frame = document.querySelector(`[data-widget-id="${CSS.escape(widget.id)}"]`);
+  const action = (widget.config.actions || []).find((item) => item.id === actionId);
+  if (!frame || !action) return;
+  const values = {};
+  frame.querySelectorAll("[data-form-field]").forEach((field) => values[field.dataset.formField] = field.value);
+  const output = frame.querySelector("[data-form-output]");
+  try {
+    if (action.type === "open_url") {
+      const url = applyTemplate(action.urlTemplate || "", values);
+      if (!safeUrl(url)) throw new Error("URL no permitida.");
+      window.open(url, "_blank", "noopener,noreferrer");
+      output.textContent = `Abierto: ${url}`;
+      return;
+    }
+    if (action.type === "calculate_expression") {
+      const expression = values[action.field] || values.expression || Object.values(values)[0] || "";
+      output.textContent = calculateExpression(expression);
+      return;
+    }
+    if (action.type === "tool_call") {
+      const data = await getJson("/tools", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tool: action.tool, arguments: action.arguments || values })
+      });
+      output.textContent = JSON.stringify(data.result || data, null, 2);
+      return;
+    }
+    if (action.type === "ask_jarvis") {
+      const prompt = applyTemplate(action.promptTemplate || Object.values(values).join(" "), values);
+      const response = await fetch("/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: prompt })
+      });
+      output.textContent = await response.text();
+      return;
+    }
+    const field = action.field || Object.keys(values)[0];
+    output.textContent = values[field] || JSON.stringify(values);
+  } catch (error) {
+    output.textContent = error.message;
+  }
 }
 
 function imagePreview(widget) {
@@ -611,7 +783,7 @@ function filePanel(widget) {
 }
 
 function chatPanel(widget) {
-  return `<div class="chat-mini"><p>Panel conectado al command router.</p><button class="text-button" data-run-command="estado">Consultar estado</button></div>`;
+  return `<div class="chat-mini"><p>Panel conectado a Codex/Gemini.</p><button class="text-button" data-run-command="crea un panel de estado del sistema">Crear estado</button></div>`;
 }
 
 function automationPanel(widget) {
@@ -629,7 +801,7 @@ function updateChecklist(widget, id, checked) {
 }
 
 function mockDataFor(widget) {
-  if (widget.type === "service_monitor") return { services: [{ name: "JARVIS", status: "online" }, { name: "Hermes", status: "mock-ready" }] };
+  if (widget.type === "service_monitor") return { services: [{ name: "JARVIS", status: "online" }, { name: "Codex", status: "pending-auth" }, { name: "Gemini", status: "fallback" }] };
   return { mock: true, status: "mock-ready", value: 42, cpu: 38, ram: 51, disk: 22, latency: 24, download: 240, upload: 80 };
 }
 
@@ -638,7 +810,7 @@ function auditHtml() {
 }
 
 function toolsHtml() {
-  return `<div class="service-list">${["get_system_status", "get_network_status", "get_recent_logs", "get_service_status", "sync_workspace"].map((item) => `<div><strong>${item}</strong><span>Disponible para widgets</span></div>`).join("")}</div>`;
+  return `<div class="service-list">${["get_system_status", "get_network_status", "get_cpu_ram_status", "get_storage_status", "get_recent_logs", "get_service_status", "get_calendar_preview", "get_assets_list", "sync_workspace"].map((item) => `<div><strong>${item}</strong><span>Disponible para widgets</span></div>`).join("")}</div>`;
 }
 
 function demoCommand(kind) {
@@ -665,6 +837,26 @@ function safeUrl(value) {
   } catch {
     return false;
   }
+}
+
+function applyTemplate(template, values) {
+  return String(template || "").replace(/\{([a-zA-Z0-9_]+)\}/g, (_, key) => encodeURIComponent(values[key] || ""));
+}
+
+function calculateExpression(expression) {
+  const clean = String(expression || "").replace(/\s+/g, "");
+  if (!/^[0-9+\-*/().,%]+$/.test(clean)) return "Operacion no permitida.";
+  const normalized = clean.replaceAll("%", "/100");
+  try {
+    const result = Function(`"use strict"; return (${normalized})`)();
+    return Number.isFinite(result) ? String(result) : "Resultado invalido.";
+  } catch {
+    return "Operacion invalida.";
+  }
+}
+
+function isInteractiveTarget(target) {
+  return !!target.closest("button, input, textarea, select, a, iframe, [data-form-field], [data-form-action], [data-run-action], [data-widget-action]");
 }
 
 function sanitizeMarkdown(value) {

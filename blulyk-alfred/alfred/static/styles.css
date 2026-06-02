@@ -289,6 +289,8 @@ button:focus-visible {
 }
 
 .widget-toolbar {
+  position: relative;
+  z-index: 2;
   min-height: 58px;
   display: flex;
   align-items: center;
@@ -297,6 +299,11 @@ button:focus-visible {
   padding: 12px 14px;
   border-bottom: 1px solid var(--line);
   user-select: none;
+}
+
+.widget-toolbar > div:first-child {
+  min-width: 0;
+  pointer-events: none;
 }
 
 .widget-toolbar h3 {
@@ -321,12 +328,23 @@ button:focus-visible {
 .widget-status.stale { color: var(--warn); }
 
 .widget-actions button {
+  position: relative;
+  z-index: 3;
+  flex: 0 0 28px;
   width: 28px;
   height: 28px;
   border: 1px solid transparent;
   border-radius: 8px;
   background: rgba(0, 229, 255, .06);
   color: var(--muted);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.widget-actions button:hover {
+  border-color: var(--line2);
+  color: var(--text);
+  background: rgba(0, 229, 255, .14);
 }
 
 .widget-body {

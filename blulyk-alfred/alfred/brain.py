@@ -18,6 +18,7 @@ import httpx
 
 from alfred.config import Settings
 from alfred.memory import MemoryStore
+from alfred.widget_engine import WidgetManifest, manifest_from_intent, validate_manifest
 
 
 DEFAULT_SYSTEM_PROMPT = """You are JARVIS, Rafael's private intelligence layer inside umbrelOS.
@@ -98,6 +99,46 @@ class JarvisBrain:
         if not response:
             response = await self._ask_google(prompt, {}, max_output_tokens=1800)
         return _coerce_widget_spec(response, user_prompt)
+
+    async def generate_widget_manifest(
+        self,
+        user_prompt: str,
+        tool_context: dict[str, object],
+        next_index: int = 1,
+    ) -> WidgetManifest:
+        prompt = (
+            "Devuelve solo JSON valido para un manifiesto declarativo de widget JARVIS. "
+            "No generes HTML, CSS, JavaScript, runtime, scripts ni markdown si el usuario pide una herramienta funcional. "
+            "El widget debe poder renderizarse con tipos seguros ya existentes.\n"
+            "Tipos permitidos: status_card, metric_card, metric_grid, line_chart, bar_chart, table, log_viewer, "
+            "markdown, checklist, form, image_preview, web_preview, command_panel, service_monitor, calendar_panel, "
+            "file_panel, chat_panel, automation_panel, iframe_sandbox.\n"
+            "Fuentes permitidas: static, mock, internal_tool, http_endpoint, local_storage, system_metric, manual_input.\n"
+            "Herramientas internas permitidas: get_system_status, get_network_status, get_cpu_ram_status, "
+            "get_storage_status, get_recent_logs, get_service_status, get_calendar_preview, get_assets_list, "
+            "sync_workspace, restart_service.\n"
+            "Schema minimo: {"
+            "\"type\":\"form|metric_grid|table|...\","
+            "\"title\":\"max 80\","
+            "\"description\":\"max 240\","
+            "\"refreshInterval\":0,"
+            "\"dataSource\":{\"type\":\"manual_input|internal_tool|static\",\"toolName\":null,\"params\":{}},"
+            "\"config\":{},"
+            "\"actions\":[{\"id\":\"texto\",\"label\":\"max 80\",\"toolName\":\"opcional\",\"params\":{},\"requiresConfirmation\":false,\"dangerLevel\":\"low\"}]"
+            "}.\n"
+            "Para un buscador, usa type=form con config.fields y config.actions de tipo open_url. "
+            "Ejemplo buscador: config.fields=[{\"id\":\"query\",\"label\":\"Busqueda\",\"type\":\"search\"}], "
+            "config.actions=[{\"id\":\"search\",\"label\":\"Buscar\",\"type\":\"open_url\",\"urlTemplate\":\"https://www.google.com/search?q={query}\"}]. "
+            "Para calculadora, usa type=form con action calculate_expression. "
+            "Para monitor, usa internal_tool si hay herramienta adecuada. "
+            "Para tablas, devuelve columnas y filas iniciales utiles.\n\n"
+            f"Contexto compacto: {json.dumps(_tiny_context(tool_context), ensure_ascii=False)}\n"
+            f"Solicitud: {user_prompt}"
+        )
+        response = await self._ask_codex(prompt, {})
+        if not response:
+            response = await self._ask_google(prompt, {}, max_output_tokens=1800)
+        return _coerce_declarative_manifest(response, user_prompt, next_index)
 
     async def status(self) -> dict[str, Any]:
         google_key = bool(await self._google_key())
@@ -544,6 +585,228 @@ def _coerce_widget_spec(text: str, user_prompt: str) -> dict[str, Any]:
         "size": _coerce_widget_size(payload.get("size"), widget_type),
         "runtime": runtime,
         "custom": _coerce_custom_widget(payload.get("custom"), user_prompt, widget_type),
+    }
+
+
+def _coerce_declarative_manifest(text: str, user_prompt: str, next_index: int) -> WidgetManifest:
+    payload = _extract_json_object(text)
+    fallback = _fallback_declarative_payload(user_prompt)
+    if not payload:
+        payload = fallback
+    allowed_types = {
+        "status_card",
+        "metric_card",
+        "metric_grid",
+        "line_chart",
+        "bar_chart",
+        "table",
+        "log_viewer",
+        "markdown",
+        "checklist",
+        "form",
+        "image_preview",
+        "web_preview",
+        "command_panel",
+        "service_monitor",
+        "calendar_panel",
+        "file_panel",
+        "chat_panel",
+        "automation_panel",
+        "iframe_sandbox",
+    }
+    allowed_sources = {"static", "mock", "internal_tool", "http_endpoint", "local_storage", "system_metric", "manual_input"}
+    allowed_tools = {
+        "get_system_status",
+        "get_network_status",
+        "get_cpu_ram_status",
+        "get_storage_status",
+        "get_recent_logs",
+        "get_service_status",
+        "get_calendar_preview",
+        "get_assets_list",
+        "sync_workspace",
+        "restart_service",
+    }
+
+    widget_type = str(payload.get("type") or fallback["type"]).strip()
+    if widget_type not in allowed_types:
+        widget_type = fallback["type"]
+    title = str(payload.get("title") or fallback["title"]).strip()[:80] or fallback["title"]
+    description = str(payload.get("description") or fallback["description"]).strip()[:240]
+    config = payload.get("config") if isinstance(payload.get("config"), dict) else fallback.get("config", {})
+    data_source = payload.get("dataSource") if isinstance(payload.get("dataSource"), dict) else fallback.get("dataSource", {"type": "mock"})
+    source_type = str(data_source.get("type") or "mock")
+    if source_type not in allowed_sources:
+        source_type = "mock"
+    tool_name = data_source.get("toolName")
+    if tool_name and tool_name not in allowed_tools:
+        tool_name = None
+    if source_type == "internal_tool" and not tool_name:
+        source_type = "mock"
+    try:
+        refresh = int(payload.get("refreshInterval") or fallback.get("refreshInterval") or 0)
+    except (TypeError, ValueError):
+        refresh = 0
+    refresh = max(0, min(600000, refresh))
+
+    actions = []
+    for item in payload.get("actions", []) if isinstance(payload.get("actions"), list) else fallback.get("actions", []):
+        if not isinstance(item, dict):
+            continue
+        action_tool = item.get("toolName")
+        if action_tool and action_tool not in allowed_tools:
+            action_tool = None
+        actions.append(
+            {
+                "id": _safe_token(str(item.get("id") or item.get("label") or "action"))[:80],
+                "label": str(item.get("label") or "Ejecutar").strip()[:80],
+                "toolName": action_tool,
+                "params": item.get("params") if isinstance(item.get("params"), dict) else {},
+                "requiresConfirmation": bool(item.get("requiresConfirmation")),
+                "dangerLevel": item.get("dangerLevel") if item.get("dangerLevel") in {"low", "medium", "high", "critical"} else "low",
+            }
+        )
+
+    base_x = 96 + (next_index % 4) * 34
+    base_y = 96 + (next_index % 5) * 30
+    size = _widget_size_for(widget_type, config)
+    manifest = {
+        "id": f"widget_{_safe_token(title)}_{secrets.token_hex(3)}",
+        "type": widget_type,
+        "title": title,
+        "description": description,
+        "layout": {"x": base_x, "y": base_y, "w": size["w"], "h": size["h"], "zIndex": next_index + 2},
+        "refreshInterval": refresh,
+        "dataSource": {
+            "type": source_type,
+            "toolName": tool_name,
+            "endpoint": data_source.get("endpoint") if source_type == "http_endpoint" else None,
+            "params": data_source.get("params") if isinstance(data_source.get("params"), dict) else {},
+        },
+        "config": _sanitize_widget_config(config),
+        "actions": actions[:12],
+        "permissions": {"canRead": True, "canWrite": widget_type in {"form", "checklist"}, "canExecuteActions": True},
+    }
+    try:
+        return validate_manifest(manifest)
+    except Exception:
+        return manifest_from_intent(user_prompt, next_index)
+
+
+def _extract_json_object(text: str) -> dict[str, Any]:
+    if not text:
+        return {}
+    cleaned = text.strip()
+    match = re.search(r"\{.*\}", cleaned, re.S)
+    if match:
+        cleaned = match.group(0)
+    try:
+        parsed = json.loads(cleaned)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _fallback_declarative_payload(prompt: str) -> dict[str, Any]:
+    text = prompt.lower()
+    if re.search(r"busc|search|google|web", text):
+        return {
+            "type": "form",
+            "title": "Buscador web",
+            "description": "Buscador generado por JARVIS.",
+            "dataSource": {"type": "manual_input", "params": {}},
+            "config": {
+                "fields": [{"id": "query", "label": "Busqueda", "type": "search", "placeholder": "Texto a buscar"}],
+                "actions": [{"id": "search", "label": "Buscar", "type": "open_url", "urlTemplate": "https://www.google.com/search?q={query}"}],
+                "notes": ["Introduce una consulta y pulsa Buscar."],
+            },
+        }
+    if re.search(r"calcul|calc|operaci[oó]n", text):
+        return {
+            "type": "form",
+            "title": "Calculadora",
+            "description": "Calculadora local generada por JARVIS.",
+            "dataSource": {"type": "manual_input", "params": {}},
+            "config": {
+                "fields": [{"id": "expression", "label": "Operacion", "type": "text", "placeholder": "Ejemplo: 6*6"}],
+                "actions": [{"id": "calculate", "label": "Calcular", "type": "calculate_expression", "field": "expression"}],
+                "notes": ["Solo admite numeros y operadores matematicos basicos."],
+            },
+        }
+    if re.search(r"formulario|form", text):
+        return {
+            "type": "form",
+            "title": "Formulario",
+            "description": "Formulario personalizado generado por JARVIS.",
+            "dataSource": {"type": "manual_input", "params": {}},
+            "config": {
+                "fields": [{"id": "value", "label": "Valor", "type": "text", "placeholder": "Introduce un dato"}],
+                "actions": [{"id": "save", "label": "Guardar", "type": "show_value", "field": "value"}],
+            },
+        }
+    return manifest_from_intent(prompt, 1).model_dump()
+
+
+def _widget_size_for(widget_type: str, config: dict[str, Any]) -> dict[str, int]:
+    defaults = {
+        "metric_grid": {"w": 480, "h": 300},
+        "table": {"w": 560, "h": 340},
+        "log_viewer": {"w": 540, "h": 360},
+        "form": {"w": 460, "h": 340},
+        "web_preview": {"w": 620, "h": 430},
+        "service_monitor": {"w": 500, "h": 340},
+        "chat_panel": {"w": 520, "h": 380},
+    }
+    size = defaults.get(widget_type, {"w": 430, "h": 290}).copy()
+    raw_size = config.get("size") if isinstance(config, dict) else None
+    if isinstance(raw_size, dict):
+        for key in ("w", "h"):
+            try:
+                size[key] = int(raw_size.get(key, size[key]))
+            except (TypeError, ValueError):
+                pass
+    size["w"] = max(260, min(1200, size["w"]))
+    size["h"] = max(180, min(900, size["h"]))
+    return size
+
+
+def _sanitize_widget_config(config: dict[str, Any]) -> dict[str, Any]:
+    safe = dict(config)
+    for forbidden in ("runtime", "html", "css", "js", "script"):
+        safe.pop(forbidden, None)
+    if isinstance(safe.get("fields"), list):
+        safe["fields"] = [_coerce_safe_form_field(item) for item in safe["fields"] if isinstance(item, dict)][:12]
+    if isinstance(safe.get("actions"), list):
+        safe["actions"] = [_coerce_safe_form_action(item) for item in safe["actions"] if isinstance(item, dict)][:12]
+    return safe
+
+
+def _coerce_safe_form_field(item: dict[str, Any]) -> dict[str, Any]:
+    field_type = str(item.get("type") or "text").lower()
+    if field_type not in {"text", "search", "number", "textarea", "select", "url"}:
+        field_type = "text"
+    return {
+        "id": _safe_token(str(item.get("id") or item.get("label") or "value"))[:40],
+        "label": str(item.get("label") or "Valor").strip()[:60],
+        "type": field_type,
+        "placeholder": str(item.get("placeholder") or "").strip()[:100],
+        "options": [str(option).strip()[:80] for option in item.get("options", [])[:20]] if isinstance(item.get("options"), list) else [],
+    }
+
+
+def _coerce_safe_form_action(item: dict[str, Any]) -> dict[str, Any]:
+    action_type = str(item.get("type") or "show_value").lower()
+    if action_type not in {"open_url", "ask_jarvis", "tool_call", "show_value", "calculate_expression"}:
+        action_type = "show_value"
+    return {
+        "id": _safe_token(str(item.get("id") or item.get("label") or action_type))[:40],
+        "label": str(item.get("label") or "Ejecutar").strip()[:60],
+        "type": action_type,
+        "urlTemplate": str(item.get("urlTemplate") or "").strip()[:500],
+        "promptTemplate": str(item.get("promptTemplate") or "").strip()[:700],
+        "field": _safe_token(str(item.get("field") or ""))[:40],
+        "tool": str(item.get("tool") or "").strip()[:80],
+        "arguments": item.get("arguments") if isinstance(item.get("arguments"), dict) else {},
     }
 
 

@@ -9,14 +9,16 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from alfred.asset_registry import AssetRegistry
+from alfred.brain import JarvisBrain
 from alfred.config import get_settings
 from alfred.docker_control import docker_summary
-from alfred.hermes import HermesClient
 from alfred.memory import MemoryStore
 from alfred.schemas import (
     AssetCommandRequest,
     CanvasImportRequest,
     ChatRequest,
+    CodexAuthImportRequest,
+    GoogleKeyRequest,
     ToolCallRequest,
     WidgetActionRequest,
     WidgetCommandRequest,
@@ -31,8 +33,8 @@ from alfred.widget_engine import WidgetLayoutDocument, load_layout, manifest_fro
 settings = get_settings()
 memory = MemoryStore(settings.db_path)
 assets = AssetRegistry(settings.fernet_key)
-hermes = HermesClient(settings.hermes_base_url, settings.hermes_model)
 tools = ToolRouter(settings, memory, assets)
+brain = JarvisBrain(settings, memory)
 
 
 @asynccontextmanager
@@ -121,6 +123,47 @@ async def audit_log(limit: int = 100) -> list[dict[str, Any]]:
     return await memory.recent_audit(max(1, min(limit, 250)))
 
 
+@app.get("/brain/status")
+async def brain_status() -> dict[str, Any]:
+    return await brain.status()
+
+
+@app.post("/brain/google-key")
+async def save_google_key(request: GoogleKeyRequest) -> dict[str, Any]:
+    await brain.save_google_key(request.api_key, request.model)
+    await audit("brain.google_key.saved", "brain", "Google Gemini API key saved.", {"model": request.model})
+    return {"ok": True, "brain": await brain.status()}
+
+
+@app.post("/brain/google-test")
+async def test_google_brain() -> dict[str, Any]:
+    result = await brain.test_google()
+    await audit("brain.google_test", "brain", "Google Gemini test executed.", {"ok": result.get("ok")})
+    return result
+
+
+@app.post("/brain/codex-auth")
+async def import_codex_auth(request: CodexAuthImportRequest) -> dict[str, Any]:
+    try:
+        await brain.save_codex_auth(request.auth_json)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    await audit("brain.codex_auth.imported", "brain", "Codex auth.json imported.", {})
+    return {"ok": True, "brain": await brain.status()}
+
+
+@app.post("/brain/codex-login")
+async def start_codex_login() -> dict[str, Any]:
+    result = await brain.start_codex_device_login()
+    await audit("brain.codex_login.started", "brain", "Codex login requested.", {"state": result.get("state")})
+    return result
+
+
+@app.get("/brain/codex-login")
+async def codex_login_status() -> dict[str, Any]:
+    return await brain.codex_login_status()
+
+
 @app.get("/widgets")
 async def list_canvas_widgets() -> dict[str, Any]:
     return (await load_layout(memory)).model_dump()
@@ -191,8 +234,8 @@ async def duplicate_canvas_widget(widget_id: str) -> dict[str, Any]:
     payload = widget.model_dump()
     payload["id"] = f"{widget.id}_copy_{len(layout.widgets) + 1}"
     payload["title"] = f"{widget.title} copy"[:80]
-    payload["layout"]["x"] += 28
-    payload["layout"]["y"] += 28
+    payload["layout"]["x"] += 84
+    payload["layout"]["y"] += 84
     clone = validate_manifest(payload)
     layout.widgets.append(clone)
     await save_layout(memory, layout)
@@ -229,7 +272,8 @@ async def jarvis_widget_command(request: WidgetCommandRequest) -> dict[str, Any]
     layout = await load_layout(memory)
     command = request.command.strip()
     await audit("command.text", "command-bar", command, {"selected": request.selected_widget_id})
-    result = await route_widget_command(command, layout, request.selected_widget_id)
+    context = await gather_context()
+    result = await route_widget_command(command, layout, request.selected_widget_id, context)
     await save_layout(memory, layout)
     return {"ok": True, **result, "layout": layout.model_dump()}
 
@@ -291,7 +335,7 @@ async def chat(request: ChatRequest) -> StreamingResponse:
             return
         context = await gather_context()
         try:
-            async for chunk in hermes.stream_chat(request.message, context):
+            async for chunk in brain.stream_chat(request.message, context):
                 yield chunk.encode()
         except Exception as exc:
             fallback = alfred_fallback(request.message, context, exc)
@@ -332,7 +376,12 @@ def deep_merge(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-async def route_widget_command(command: str, layout: WidgetLayoutDocument, selected_id: str | None) -> dict[str, Any]:
+async def route_widget_command(
+    command: str,
+    layout: WidgetLayoutDocument,
+    selected_id: str | None,
+    context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     normalized = " ".join(command.lower().split())
     selected = next((item for item in layout.widgets if item.id == selected_id), None)
     target = selected or (layout.widgets[-1] if layout.widgets else None)
@@ -385,10 +434,22 @@ async def route_widget_command(command: str, layout: WidgetLayoutDocument, selec
             await audit("widget.updated", "command-router", f"Updated refresh interval for {updated.title}", {"id": updated.id, "refreshInterval": updated.refreshInterval})
             return {"widget": updated.model_dump(), "message": f"{updated.title} refreshes every {match.group(1)} seconds."}
 
-    manifest = manifest_from_intent(command, len(layout.widgets) + 1)
+    manifest = None
+    if _looks_like_widget_creation(normalized):
+        try:
+            manifest = await brain.generate_widget_manifest(command, context or {}, len(layout.widgets) + 1)
+        except Exception as exc:
+            await audit("widget.ai_generation_error", "command-router", f"AI widget generation failed: {exc}", {"command": command}, "warning")
+    if manifest is None:
+        manifest = manifest_from_intent(command, len(layout.widgets) + 1)
     layout.widgets.append(manifest)
     await audit("widget.created", "command-router", f"Created widget {manifest.title}", {"id": manifest.id, "type": manifest.type})
     return {"widget": manifest.model_dump(), "message": f"Created {manifest.title}."}
+
+
+def _looks_like_widget_creation(normalized: str) -> bool:
+    creation_terms = ("crea", "crear", "genera", "generar", "añade", "anade", "nuevo", "widget", "panel", "herramienta")
+    return any(term in normalized for term in creation_terms)
 
 
 async def gather_context() -> dict[str, Any]:
@@ -411,11 +472,11 @@ async def gather_context() -> dict[str, Any]:
 
 def alfred_fallback(message: str, context: dict[str, Any], exc: Exception) -> str:
     return (
-        "Hermes uplink unavailable. Local analysis follows.\n"
+        "Codex/Gemini no han devuelto respuesta. Analisis local:\n"
         f"Request: {message}\n"
         f"Telemetry: {json.dumps(context, ensure_ascii=False, indent=2)}\n"
         f"Fault: {exc}\n"
-        "Recommendation: restore the Hermes endpoint before expecting conversational finesse."
+        "Configura Codex auth.json o GOOGLE_API_KEY para recuperar la mente externa."
     )
 
 

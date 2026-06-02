@@ -37,3 +37,12 @@ class CanvasImportRequest(BaseModel):
 class WidgetActionRequest(BaseModel):
     action_id: str = Field(min_length=1, max_length=80)
     confirm: bool = False
+
+
+class GoogleKeyRequest(BaseModel):
+    api_key: str = Field(min_length=1, max_length=400)
+    model: str | None = Field(default=None, max_length=80)
+
+
+class CodexAuthImportRequest(BaseModel):
+    auth_json: str = Field(min_length=10, max_length=200000)
