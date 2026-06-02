@@ -240,6 +240,48 @@ replace_once(
 
 replace_once(
     "static/js/documentLibrary.js",
+    """        if (doc.session_id) items.push({ label: 'Open', action: () => libraryOpenInSession(doc) });
+        items.push({ label: 'Clone', action: () => libraryImportDocument(doc) });
+""",
+    """        items.push({ label: 'Open', action: () => libraryOpenDocument(doc) });
+        items.push({ label: 'Clone', action: () => libraryImportDocument(doc) });
+""",
+)
+
+replace_once(
+    "static/js/documentLibrary.js",
+    """    if (doc.session_id) {
+      openItem.addEventListener('click', (e) => { e.stopPropagation(); dropdown.style.display = 'none'; libraryOpenInSession(doc); });
+    } else {
+      openItem.disabled = true;
+      openItem.style.opacity = '0.35';
+      openItem.title = 'Not linked to a session';
+    }
+""",
+    """    openItem.title = doc.session_id ? 'Open in original session' : 'Open in current workspace';
+    openItem.addEventListener('click', (e) => { e.stopPropagation(); dropdown.style.display = 'none'; libraryOpenDocument(doc); });
+""",
+)
+
+replace_once(
+    "static/js/documentLibrary.js",
+    """    if (doc.session_id) {
+      openBtn.title = 'Open in original session';
+      openBtn.addEventListener('click', (e) => { e.stopPropagation(); libraryOpenInSession(doc); });
+    } else {
+      openBtn.disabled = true;
+      openBtn.style.opacity = '0.35';
+      openBtn.style.cursor = 'not-allowed';
+      openBtn.title = 'This document is not linked to a session';
+    }
+""",
+    """    openBtn.title = doc.session_id ? 'Open in original session' : 'Open in current workspace';
+    openBtn.addEventListener('click', (e) => { e.stopPropagation(); libraryOpenDocument(doc); });
+""",
+)
+
+replace_once(
+    "static/js/documentLibrary.js",
     """        const files = fileInput.files;
         fileInput.value = '';
 """,
