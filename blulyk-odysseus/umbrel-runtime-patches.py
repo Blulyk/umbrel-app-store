@@ -301,6 +301,26 @@ replace_once(
 )
 
 replace_once(
+    "static/js/document.js",
+    """      wrap.addEventListener('mouseenter', () => _setHandlesVisible(true));
+      wrap.addEventListener('mouseleave', () => _setHandlesVisible(false));
+""",
+    """      wrap.addEventListener('mouseenter', () => _setHandlesVisible(true));
+      wrap.addEventListener('mouseleave', () => {
+        setTimeout(() => {
+          const overFloatingControl =
+            wrap.matches(':hover') ||
+            del.matches(':hover') ||
+            grip.matches(':hover') ||
+            resize.matches(':hover') ||
+            (menuBtn && menuBtn.matches(':hover'));
+          if (!overFloatingControl) _setHandlesVisible(false);
+        }, 180);
+      });
+""",
+)
+
+replace_once(
     "static/js/documentLibrary.js",
     """        if (doc.session_id) items.push({ label: 'Open', action: () => libraryOpenInSession(doc) });
         items.push({ label: 'Clone', action: () => libraryImportDocument(doc) });
