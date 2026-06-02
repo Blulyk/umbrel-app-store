@@ -11,6 +11,14 @@ def replace_once(path: str, needle: str, replacement: str) -> None:
     target.write_text(text.replace(needle, replacement, 1), encoding="utf-8")
 
 
+def replace_if_found(path: str, needle: str, replacement: str) -> None:
+    target = Path(path)
+    text = target.read_text(encoding="utf-8")
+    if replacement in text or needle not in text:
+        return
+    target.write_text(text.replace(needle, replacement, 1), encoding="utf-8")
+
+
 replace_once(
     "core/middleware.py",
     """        is_report = path.startswith("/api/research/report/")
@@ -256,6 +264,28 @@ replace_once(
 """,
 )
 
+replace_if_found(
+    "static/js/chat.js",
+    """      const readDraggedDoc = (e) => {
+        const raw = e.dataTransfer?.getData('application/x-odysseus-document');
+""",
+    """      const hasDraggedDoc = (e) =>
+        Array.from(e.dataTransfer?.types || []).includes('application/x-odysseus-document');
+      const readDraggedDoc = (e) => {
+        const raw = e.dataTransfer?.getData('application/x-odysseus-document');
+""",
+)
+
+replace_if_found(
+    "static/js/chat.js",
+    """      document.addEventListener('dragover', (e) => {
+        if (!readDraggedDoc(e)) return;
+""",
+    """      document.addEventListener('dragover', (e) => {
+        if (!hasDraggedDoc(e)) return;
+""",
+)
+
 replace_once(
     "static/js/chat.js",
     """  export function initListeners() {
@@ -269,13 +299,15 @@ replace_once(
         document.getElementById('chat-bar'),
         document.getElementById('chat-history'),
       ].filter(Boolean);
+      const hasDraggedDoc = (e) =>
+        Array.from(e.dataTransfer?.types || []).includes('application/x-odysseus-document');
       const readDraggedDoc = (e) => {
         const raw = e.dataTransfer?.getData('application/x-odysseus-document');
         if (!raw) return null;
         try { return JSON.parse(raw); } catch (_) { return null; }
       };
       document.addEventListener('dragover', (e) => {
-        if (!readDraggedDoc(e)) return;
+        if (!hasDraggedDoc(e)) return;
         if (!docDropTargets().some(t => t === e.target || t.contains(e.target))) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = 'link';
