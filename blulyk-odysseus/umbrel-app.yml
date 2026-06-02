@@ -4,7 +4,7 @@ name: Odysseus
 tagline: Self-hosted AI workspace for chat, agents, research and documents
 icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-odysseus/icon.svg
 category: ai
-version: "1.0.11"
+version: "1.0.12"
 port: 7000
 description: >-
   Odysseus is a self-hosted AI workspace designed as a local-first alternative
@@ -34,6 +34,5 @@ defaultPassword: ""
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store
 releaseNotes: >-
-  v1.0.11 enables Open for library PDFs/documents that are not linked to an
-  original chat session. They now open directly in the document sidebar instead
-  of only being available as previews or clones.
+  v1.0.12 fixes dragging document/PDF tabs into the chat. Dropped documents now
+  become the active chat context instead of only showing the drag animation.

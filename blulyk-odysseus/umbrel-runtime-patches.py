@@ -239,6 +239,68 @@ replace_once(
 )
 
 replace_once(
+    "static/js/document.js",
+    """        dragId = tab.dataset.docId;
+        tab.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+""",
+    """        dragId = tab.dataset.docId;
+        tab.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        const doc = docs.get(dragId);
+        const payload = JSON.stringify({ id: dragId, title: doc?.title || 'Document' });
+        e.dataTransfer.setData('application/x-odysseus-document', payload);
+        e.dataTransfer.setData('text/plain', doc?.title || 'Document');
+      });
+""",
+)
+
+replace_once(
+    "static/js/chat.js",
+    """  export function initListeners() {
+    // Global event delegation for copy-code buttons
+""",
+    """  export function initListeners() {
+    if (!window.__odysseus_doc_drop_bound) {
+      window.__odysseus_doc_drop_bound = true;
+      const docDropTargets = () => [
+        document.getElementById('message'),
+        document.getElementById('chat-bar'),
+        document.getElementById('chat-history'),
+      ].filter(Boolean);
+      const readDraggedDoc = (e) => {
+        const raw = e.dataTransfer?.getData('application/x-odysseus-document');
+        if (!raw) return null;
+        try { return JSON.parse(raw); } catch (_) { return null; }
+      };
+      document.addEventListener('dragover', (e) => {
+        if (!readDraggedDoc(e)) return;
+        if (!docDropTargets().some(t => t === e.target || t.contains(e.target))) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'link';
+      });
+      document.addEventListener('drop', async (e) => {
+        const draggedDoc = readDraggedDoc(e);
+        if (!draggedDoc?.id) return;
+        if (!docDropTargets().some(t => t === e.target || t.contains(e.target))) return;
+        e.preventDefault();
+        try {
+          if (documentModule.openPanel) documentModule.openPanel();
+          if (documentModule.loadDocument) await documentModule.loadDocument(draggedDoc.id);
+          if (uiModule?.showToast) uiModule.showToast(`Document attached: ${draggedDoc.title || 'Document'}`);
+        } catch (err) {
+          console.error('Failed to attach dragged document:', err);
+          if (uiModule?.showError) uiModule.showError('Could not attach document to chat');
+        }
+      });
+    }
+
+    // Global event delegation for copy-code buttons
+""",
+)
+
+replace_once(
     "static/js/documentLibrary.js",
     """        if (doc.session_id) items.push({ label: 'Open', action: () => libraryOpenInSession(doc) });
         items.push({ label: 'Clone', action: () => libraryImportDocument(doc) });
