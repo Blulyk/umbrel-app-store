@@ -38,5 +38,5 @@ jobs:
           platforms: linux/amd64
           tags: |
             ghcr.io/blulyk/alfred-umbrel:latest
-            ghcr.io/blulyk/alfred-umbrel:1.7.3
+            ghcr.io/blulyk/alfred-umbrel:1.7.4
             ghcr.io/blulyk/alfred-umbrel:${{ github.sha }}

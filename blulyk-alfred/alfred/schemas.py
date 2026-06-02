@@ -17,27 +17,23 @@ class ToolCallRequest(BaseModel):
     arguments: dict[str, Any] = Field(default_factory=dict)
 
 
-class WidgetGenerateRequest(BaseModel):
-    prompt: str = Field(min_length=1, max_length=1000)
-    existing_widgets: list[str] = Field(default_factory=list, max_length=30)
+class WidgetCommandRequest(BaseModel):
+    command: str = Field(min_length=1, max_length=2000)
+    selected_widget_id: str | None = Field(default=None, max_length=90)
 
 
-class WidgetSaveRequest(BaseModel):
-    widget: dict[str, Any]
+class WidgetManifestRequest(BaseModel):
+    manifest: dict[str, Any]
 
 
-class GoogleSettingsRequest(BaseModel):
-    api_key: str = Field(min_length=20, max_length=400)
-    model: str | None = Field(default=None, max_length=80)
+class WidgetPatchRequest(BaseModel):
+    patch: dict[str, Any]
 
 
-class ChatGPTOAuthSettingsRequest(BaseModel):
-    client_id: str = Field(min_length=1, max_length=300)
-    client_secret: str = Field(min_length=1, max_length=600)
-    authorization_url: str = Field(min_length=8, max_length=1000)
-    token_url: str = Field(min_length=8, max_length=1000)
-    scope: str = Field(default="", max_length=500)
+class CanvasImportRequest(BaseModel):
+    layout: dict[str, Any]
 
 
-class CodexAuthImportRequest(BaseModel):
-    auth_json: str = Field(min_length=20, max_length=20000)
+class WidgetActionRequest(BaseModel):
+    action_id: str = Field(min_length=1, max_length=80)
+    confirm: bool = False

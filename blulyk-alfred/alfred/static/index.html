@@ -3,91 +3,79 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>JARVIS ARC-CANVAS</title>
-  <link rel="stylesheet" href="/static/styles.css?v=1.7.3">
+  <title>JARVIS ARC Canvas</title>
+  <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-  <main class="arc-app booting" id="arcApp">
+  <main class="app-shell" id="appShell">
     <div class="grid-plane" aria-hidden="true"></div>
-    <div class="schematic-noise" aria-hidden="true"></div>
-    <div class="boot-veil" aria-hidden="true">
-      <span>J.A.R.V.I.S. ARC-CANVAS</span>
-      <strong>ORCHESTRATOR ONLINE</strong>
-    </div>
 
     <header class="topbar">
       <div>
-        <p class="eyebrow">Arc Canvas Orchestrator</p>
+        <p class="eyebrow">ARC Canvas Orchestrator</p>
         <h1>JARVIS</h1>
+        <span id="systemState" class="system-line">Assessing local systems</span>
       </div>
-      <div class="topbar-actions">
-        <span id="brainState" class="status-chip">Inicializando</span>
-        <button id="resetView" class="hud-button" type="button">CENTRAR</button>
-        <button id="refreshAll" class="hud-button" type="button">SYNC</button>
+      <div class="top-actions">
+        <span id="modelState" class="status-pill">Hermes local</span>
+        <span id="latencyState" class="status-pill muted-pill">-- ms</span>
+        <button id="centerCanvas" class="hud-button" type="button">Centrar</button>
+        <button id="syncCanvas" class="hud-button" type="button">Sync</button>
+        <button id="openConfig" class="hud-button" type="button">Config</button>
       </div>
     </header>
 
-    <section id="canvasViewport" class="canvas-viewport" aria-label="Tablero infinito JARVIS">
-      <div id="canvasWorld" class="canvas-world">
-        <svg class="circuit-map" viewBox="-1200 -800 2400 1600" aria-hidden="true">
-          <defs>
-            <filter id="cyanGlow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="2.4" result="blur"></feGaussianBlur>
-              <feMerge><feMergeNode in="blur"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge>
-            </filter>
-            <linearGradient id="traceGradient" x1="0" x2="1" y1="0" y2="0">
-              <stop offset="0" stop-color="#00a8ff" stop-opacity=".2"></stop>
-              <stop offset=".52" stop-color="#00f0ff" stop-opacity="1"></stop>
-              <stop offset="1" stop-color="#00ebd4" stop-opacity=".55"></stop>
-            </linearGradient>
-          </defs>
-          <g filter="url(#cyanGlow)">
-            <path class="draw-line" d="M0 0 L-110 -90 L-305 -145 L-385 -235 L-650 -235 L-720 -300 L-970 -300"></path>
-            <path class="draw-line delay-1" d="M0 0 L170 -125 L405 -160 L520 -250 L795 -250 L875 -330 L1100 -330"></path>
-            <path class="draw-line delay-2" d="M0 0 L-185 145 L-390 210 L-505 330 L-790 330 L-865 405 L-1100 405"></path>
-            <path class="draw-line delay-3" d="M0 0 L210 150 L425 185 L535 305 L825 305 L915 390 L1120 390"></path>
-            <path class="draw-line delay-4" d="M0 0 L10 290 L-115 410 L-370 410 L-455 505 L-705 505"></path>
-            <path class="draw-line delay-5" d="M0 0 L0 -315 L135 -435 L380 -435 L460 -515 L720 -515"></path>
-            <path class="trace trace-a" d="M0 0 L-110 -90 L-305 -145 L-385 -235 L-650 -235 L-720 -300 L-970 -300"></path>
-            <path class="trace trace-b" d="M0 0 L170 -125 L405 -160 L520 -250 L795 -250 L875 -330 L1100 -330"></path>
-            <path class="trace trace-c" d="M0 0 L-185 145 L-390 210 L-505 330 L-790 330 L-865 405 L-1100 405"></path>
-            <path class="trace trace-d" d="M0 0 L210 150 L425 185 L535 305 L825 305 L915 390 L1120 390"></path>
-          </g>
-        </svg>
+    <aside class="sidebar" aria-label="Paneles JARVIS">
+      <button class="side-button active" data-panel="chat">Chat</button>
+      <button class="side-button" data-demo="system">Métricas</button>
+      <button class="side-button" data-panel="config">Config</button>
+      <button class="side-button" data-demo="logs">Logs</button>
+      <button class="side-button" data-demo="assets">Assets</button>
+      <button class="side-button" data-demo="automation">Automatizaciones</button>
+      <button class="side-button" data-panel="memory">Memoria</button>
+      <button class="side-button" data-panel="tools">Herramientas</button>
+    </aside>
 
-        <button id="coreButton" class="arc-core" type="button" aria-label="Inicializar chat">
-          <svg viewBox="0 0 300 300" aria-hidden="true">
-            <circle class="core-ring ring-outer" cx="150" cy="150" r="132"></circle>
-            <circle class="core-ring ring-mid" cx="150" cy="150" r="105"></circle>
-            <circle class="core-ring ring-inner" cx="150" cy="150" r="72"></circle>
-            <circle class="core-disc" cx="150" cy="150" r="50"></circle>
-            <g class="core-ticks">
-              <path d="M150 28 V50"></path><path d="M150 250 V272"></path><path d="M28 150 H50"></path><path d="M250 150 H272"></path>
-              <path d="M63 63 L78 78"></path><path d="M222 222 L237 237"></path><path d="M237 63 L222 78"></path><path d="M78 222 L63 237"></path>
-            </g>
-          </svg>
-          <span>INITIALIZE</span>
+    <section class="canvas-viewport" id="canvasViewport" aria-label="Canvas de widgets JARVIS">
+      <div class="canvas-world" id="canvasWorld">
+        <button class="jarvis-core" id="jarvisCore" type="button" aria-label="Estado central de JARVIS">
+          <span class="core-ring ring-a"></span>
+          <span class="core-ring ring-b"></span>
+          <span class="core-ring ring-c"></span>
+          <strong id="coreState">IDLE</strong>
         </button>
-
         <div id="widgetLayer" class="widget-layer"></div>
       </div>
     </section>
 
-    <form id="commandBar" class="command-bar">
-      <input id="widgetCommandInput" autocomplete="off" placeholder="Ordena un widget: monitor de red, almacenamiento remoto, logs, configuracion, chat...">
-      <button class="send-button" type="submit">GENERAR</button>
-    </form>
+    <section class="inspector" id="inspector" aria-label="Panel lateral">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow" id="inspectorEyebrow">Chat</p>
+          <h2 id="inspectorTitle">JARVIS Console</h2>
+        </div>
+        <button id="closeInspector" class="icon-button" type="button" aria-label="Cerrar panel">×</button>
+      </div>
+      <div id="inspectorBody" class="inspector-body"></div>
+    </section>
 
-    <aside class="dock">
-      <button class="dock-button" data-widget="chat" type="button">CHAT</button>
-      <button class="dock-button" data-widget="metrics" type="button">METRICAS</button>
-      <button class="dock-button" data-widget="config" type="button">CONFIG</button>
-      <button class="dock-button" data-widget="logs" type="button">LOGS</button>
-      <button class="dock-button" data-widget="assets" type="button">ASSETS</button>
-    </aside>
+    <form id="commandBar" class="command-bar">
+      <button id="attachButton" class="icon-button" type="button" aria-label="Adjuntar">+</button>
+      <select id="commandMode" aria-label="Modo de comando">
+        <option value="fast">Rápido</option>
+        <option value="deep">Profundo</option>
+        <option value="agent">Agente</option>
+        <option value="auto">Automático</option>
+      </select>
+      <input id="commandInput" autocomplete="off" placeholder="Pide a JARVIS crear, mover, editar, borrar o consultar widgets">
+      <button id="micButton" class="icon-button" type="button" aria-label="Micrófono push-to-talk">MIC</button>
+      <button id="clearInput" class="icon-button" type="button" aria-label="Limpiar input">CLR</button>
+      <button class="send-button" type="submit">Ejecutar</button>
+      <div id="commandHints" class="command-hints"></div>
+    </form>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
   </main>
-  <script src="/static/app.js?v=1.7.3"></script>
+  <script src="/static/app.js"></script>
 </body>
 </html>

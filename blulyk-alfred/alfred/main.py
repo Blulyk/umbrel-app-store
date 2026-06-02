@@ -1,32 +1,38 @@
 import asyncio
-import html
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse, StreamingResponse
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from alfred.asset_registry import AssetRegistry
-from alfred.brain import JarvisBrain
 from alfred.config import get_settings
 from alfred.docker_control import docker_summary
-from alfred.google_oauth import GoogleOAuthController
+from alfred.hermes import HermesClient
 from alfred.memory import MemoryStore
-from alfred.schemas import AssetCommandRequest, ChatGPTOAuthSettingsRequest, ChatRequest, CodexAuthImportRequest, GoogleSettingsRequest, ToolCallRequest, WidgetGenerateRequest, WidgetSaveRequest
-from alfred.system_control import host_auth_journal
-from alfred.threats import scan_auth_log, scan_auth_text
+from alfred.schemas import (
+    AssetCommandRequest,
+    CanvasImportRequest,
+    ChatRequest,
+    ToolCallRequest,
+    WidgetActionRequest,
+    WidgetCommandRequest,
+    WidgetManifestRequest,
+    WidgetPatchRequest,
+)
+from alfred.threats import scan_auth_log
 from alfred.tool_router import ToolRouter
 from alfred.vitals import vitals_payload
+from alfred.widget_engine import WidgetLayoutDocument, load_layout, manifest_from_intent, save_layout, validate_manifest
 
 settings = get_settings()
 memory = MemoryStore(settings.db_path)
 assets = AssetRegistry(settings.fernet_key)
-brain = JarvisBrain(settings, memory)
+hermes = HermesClient(settings.hermes_base_url, settings.hermes_model)
 tools = ToolRouter(settings, memory, assets)
-google_oauth = GoogleOAuthController(settings, memory)
 
 
 @asynccontextmanager
@@ -35,117 +41,13 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     yield
 
 
-app = FastAPI(title="JARVIS Orchestrator", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="ALFRED Orchestrator", version="0.1.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="alfred/static"), name="static")
 
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    return {"status": "operational", "assessment": "JARVIS core online."}
-
-
-@app.get("/status")
-async def status() -> dict[str, Any]:
-    context = await gather_context()
-    return {
-        "identity": {
-            "name": "JARVIS",
-            "full_name": "Just A Rather Very Intelligent System",
-            "mode": "Codex ChatGPT sign-in with Google Gemini fallback and local reflex orchestration",
-        },
-        "brain": await brain.status(),
-        "context": context,
-        "capabilities": tools.catalog(),
-    }
-
-
-@app.post("/settings/google")
-async def configure_google(request: GoogleSettingsRequest) -> dict[str, Any]:
-    await brain.save_google_key(request.api_key, request.model)
-    return {"ok": True, "brain": await brain.status()}
-
-
-@app.post("/settings/google/test")
-async def test_google() -> dict[str, Any]:
-    return await brain.test_google()
-
-
-@app.get("/settings/google/oauth/status")
-async def google_oauth_status() -> dict[str, Any]:
-    return await google_oauth.status()
-
-
-@app.get("/oauth/google/start")
-async def start_google_oauth() -> RedirectResponse:
-    try:
-        return RedirectResponse(await google_oauth.authorization_url())
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@app.get("/oauth/google/callback")
-@app.get("/oauth2callback")
-async def google_oauth_callback(code: str, state: str) -> HTMLResponse:
-    result = await google_oauth.callback(code, state)
-    if not result.get("ok"):
-        error = html.escape(str(result.get("error") or "Error OAuth desconocido."))
-        return HTMLResponse(f"<h1>JARVIS OAuth no completado</h1><p>{error}</p>", status_code=400)
-    return HTMLResponse("<h1>Google OAuth conectado</h1><p>Puede cerrar esta ventana y volver a JARVIS.</p>")
-
-
-@app.post("/settings/google/oauth/refresh")
-async def refresh_google_oauth() -> dict[str, Any]:
-    return await google_oauth.refresh()
-
-
-@app.post("/settings/google/oauth/disconnect")
-async def disconnect_google_oauth() -> dict[str, Any]:
-    return await google_oauth.disconnect()
-
-
-@app.post("/settings/chatgpt-oauth")
-async def configure_chatgpt_oauth(request: ChatGPTOAuthSettingsRequest) -> dict[str, Any]:
-    await brain.save_chatgpt_oauth(request.model_dump())
-    return {"ok": True, "brain": await brain.status()}
-
-
-@app.post("/settings/codex-auth")
-async def import_codex_auth(request: CodexAuthImportRequest) -> dict[str, Any]:
-    try:
-        await brain.save_codex_auth(request.auth_json)
-    except (ValueError, json.JSONDecodeError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"ok": True, "brain": await brain.status()}
-
-
-@app.post("/settings/codex-login/start")
-async def start_codex_login() -> dict[str, Any]:
-    return {"ok": True, "login": await brain.start_codex_device_login()}
-
-
-@app.get("/settings/codex-login/status")
-async def codex_login_status() -> dict[str, Any]:
-    return {"ok": True, "login": await brain.codex_login_status()}
-
-
-@app.get("/oauth/chatgpt/start")
-async def start_chatgpt_oauth(request: Request) -> RedirectResponse:
-    try:
-        url = await brain.chatgpt_oauth_authorization_url(str(request.url_for("chatgpt_oauth_callback")))
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return RedirectResponse(url)
-
-
-@app.get("/oauth/chatgpt/callback", name="chatgpt_oauth_callback")
-async def chatgpt_oauth_callback(code: str, state: str, request: Request) -> PlainTextResponse:
-    result = await brain.complete_chatgpt_oauth(code, state, str(request.url_for("chatgpt_oauth_callback")))
-    if not result.get("ok"):
-        return PlainTextResponse(f"JARVIS OAuth no completado: {result.get('error')}", status_code=400)
-    return PlainTextResponse(
-        "JARVIS OAuth conectado. La conexion queda guardada, pero ChatGPT aun no ofrece inferencia oficial "
-        "por OAuth de suscripcion para apps externas."
-    )
+    return {"status": "operational", "assessment": "Nominal. Do try to keep it that way."}
 
 
 @app.get("/")
@@ -178,7 +80,7 @@ async def vitals() -> dict[str, object]:
 
 @app.get("/threats")
 async def threats() -> dict[str, object]:
-    payload = await threat_context()
+    payload = scan_auth_log(settings.auth_log_path)
     if payload["status"] == "Anomalous":
         await memory.record_incident(
             severity="warning",
@@ -214,34 +116,146 @@ async def call_tool(request: ToolCallRequest) -> dict[str, Any]:
     return await tools.execute(request.tool, request.arguments)
 
 
-@app.post("/widgets/generate")
-async def generate_widget(request: WidgetGenerateRequest) -> dict[str, Any]:
-    context = await gather_context()
-    spec = await brain.generate_widget_spec(request.prompt, context)
-    await memory.set_preference("last_widget_spec", spec)
-    spec = await save_generated_widget(spec)
-    return {"ok": True, "widget": spec}
+@app.get("/audit")
+async def audit_log(limit: int = 100) -> list[dict[str, Any]]:
+    return await memory.recent_audit(max(1, min(limit, 250)))
 
 
 @app.get("/widgets")
-async def list_generated_widgets() -> dict[str, Any]:
-    return {"ok": True, "widgets": await generated_widgets()}
+async def list_canvas_widgets() -> dict[str, Any]:
+    return (await load_layout(memory)).model_dump()
 
 
 @app.post("/widgets")
-async def save_widget(request: WidgetSaveRequest) -> dict[str, Any]:
-    widget = request.widget
-    if not isinstance(widget, dict):
-        raise HTTPException(status_code=400, detail="Widget invalido.")
-    await save_generated_widget(widget)
-    return {"ok": True, "widgets": await generated_widgets()}
+async def create_canvas_widget(request: WidgetManifestRequest) -> dict[str, Any]:
+    layout = await load_layout(memory)
+    try:
+        manifest = validate_manifest(request.manifest)
+    except Exception as exc:
+        await audit("widget.validation_error", "widget-engine", f"Invalid widget manifest: {exc}", {"manifest": request.manifest}, "error")
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    layout.widgets = [widget for widget in layout.widgets if widget.id != manifest.id]
+    layout.widgets.append(manifest)
+    await save_layout(memory, layout)
+    await audit("widget.created", "widget-engine", f"Created widget {manifest.title}", {"id": manifest.id, "type": manifest.type})
+    return {"ok": True, "widget": manifest.model_dump(), "layout": layout.model_dump()}
+
+
+@app.get("/widgets/{widget_id}")
+async def get_canvas_widget(widget_id: str) -> dict[str, Any]:
+    layout = await load_layout(memory)
+    widget = next((item for item in layout.widgets if item.id == widget_id), None)
+    if widget is None:
+        raise HTTPException(status_code=404, detail="Widget not found.")
+    return {"ok": True, "widget": widget.model_dump()}
+
+
+@app.patch("/widgets/{widget_id}")
+async def update_canvas_widget(widget_id: str, request: WidgetPatchRequest) -> dict[str, Any]:
+    layout = await load_layout(memory)
+    widgets = []
+    updated = None
+    for widget in layout.widgets:
+        if widget.id != widget_id:
+            widgets.append(widget)
+            continue
+        payload = deep_merge(widget.model_dump(), request.patch)
+        updated = validate_manifest(payload)
+        widgets.append(updated)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Widget not found.")
+    layout.widgets = widgets
+    await save_layout(memory, layout)
+    await audit("widget.updated", "widget-engine", f"Updated widget {updated.title}", {"id": updated.id, "patch": request.patch})
+    return {"ok": True, "widget": updated.model_dump(), "layout": layout.model_dump()}
 
 
 @app.delete("/widgets/{widget_id}")
-async def delete_widget(widget_id: str) -> dict[str, Any]:
-    widgets = [item for item in await generated_widgets() if item.get("id") != widget_id]
-    await memory.set_preference("generated_widgets", widgets)
-    return {"ok": True, "widgets": widgets}
+async def delete_canvas_widget(widget_id: str) -> dict[str, Any]:
+    layout = await load_layout(memory)
+    before = len(layout.widgets)
+    layout.widgets = [widget for widget in layout.widgets if widget.id != widget_id]
+    if len(layout.widgets) == before:
+        raise HTTPException(status_code=404, detail="Widget not found.")
+    await save_layout(memory, layout)
+    await audit("widget.deleted", "widget-engine", f"Deleted widget {widget_id}", {"id": widget_id})
+    return {"ok": True, "layout": layout.model_dump()}
+
+
+@app.post("/widgets/{widget_id}/duplicate")
+async def duplicate_canvas_widget(widget_id: str) -> dict[str, Any]:
+    layout = await load_layout(memory)
+    widget = next((item for item in layout.widgets if item.id == widget_id), None)
+    if widget is None:
+        raise HTTPException(status_code=404, detail="Widget not found.")
+    payload = widget.model_dump()
+    payload["id"] = f"{widget.id}_copy_{len(layout.widgets) + 1}"
+    payload["title"] = f"{widget.title} copy"[:80]
+    payload["layout"]["x"] += 28
+    payload["layout"]["y"] += 28
+    clone = validate_manifest(payload)
+    layout.widgets.append(clone)
+    await save_layout(memory, layout)
+    await audit("widget.duplicated", "widget-engine", f"Duplicated widget {widget.title}", {"source": widget_id, "id": clone.id})
+    return {"ok": True, "widget": clone.model_dump(), "layout": layout.model_dump()}
+
+
+@app.delete("/widgets")
+async def clear_canvas_widgets(confirm: bool = False) -> dict[str, Any]:
+    if not confirm:
+        raise HTTPException(status_code=400, detail="Clearing the canvas requires confirm=true.")
+    layout = await load_layout(memory)
+    count = len(layout.widgets)
+    layout.widgets = []
+    await save_layout(memory, layout)
+    await audit("canvas.cleared", "widget-engine", f"Cleared {count} widgets", {"count": count}, "warning")
+    return {"ok": True, "layout": layout.model_dump()}
+
+
+@app.post("/widgets/import")
+async def import_canvas_layout(request: CanvasImportRequest) -> dict[str, Any]:
+    try:
+        layout = WidgetLayoutDocument.model_validate(request.layout)
+    except Exception as exc:
+        await audit("canvas.import_error", "widget-engine", f"Invalid canvas import: {exc}", {}, "error")
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    await save_layout(memory, layout)
+    await audit("canvas.imported", "widget-engine", "Imported canvas layout", {"widgets": len(layout.widgets)})
+    return {"ok": True, "layout": layout.model_dump()}
+
+
+@app.post("/widgets/command")
+async def jarvis_widget_command(request: WidgetCommandRequest) -> dict[str, Any]:
+    layout = await load_layout(memory)
+    command = request.command.strip()
+    await audit("command.text", "command-bar", command, {"selected": request.selected_widget_id})
+    result = await route_widget_command(command, layout, request.selected_widget_id)
+    await save_layout(memory, layout)
+    return {"ok": True, **result, "layout": layout.model_dump()}
+
+
+@app.post("/widgets/{widget_id}/actions")
+async def run_widget_action(widget_id: str, request: WidgetActionRequest) -> dict[str, Any]:
+    layout = await load_layout(memory)
+    widget = next((item for item in layout.widgets if item.id == widget_id), None)
+    if widget is None:
+        raise HTTPException(status_code=404, detail="Widget not found.")
+    action = next((item for item in widget.actions if item.id == request.action_id), None)
+    if action is None:
+        raise HTTPException(status_code=404, detail="Action not found.")
+    if not widget.permissions.canExecuteActions or widget.permissions.readOnly:
+        raise HTTPException(status_code=403, detail="Widget action execution is disabled.")
+    if action.requiresConfirmation and not request.confirm:
+        raise HTTPException(status_code=409, detail="Action requires confirmation.")
+    result = await tools.execute(action.toolName or "", action.params)
+    await audit(
+        "widget.action",
+        widget.id,
+        f"Executed action {action.label}",
+        {"widget": widget.id, "action": action.model_dump(), "result": result},
+        "warning" if action.dangerLevel in {"high", "critical"} else "info",
+    )
+    return {"ok": True, "result": result}
 
 
 @app.post("/assets/{asset_id}/command")
@@ -271,87 +285,19 @@ async def asset_socket(websocket: WebSocket) -> None:
 @app.post("/chat")
 async def chat(request: ChatRequest) -> StreamingResponse:
     async def stream() -> AsyncIterator[bytes]:
-        async for chunk in chat_chunks(request.message):
-            yield chunk.encode()
+        tool_result = await maybe_execute_json_tool(request.message)
+        if tool_result is not None:
+            yield json.dumps(tool_result, ensure_ascii=False, indent=2).encode()
+            return
+        context = await gather_context()
+        try:
+            async for chunk in hermes.stream_chat(request.message, context):
+                yield chunk.encode()
+        except Exception as exc:
+            fallback = alfred_fallback(request.message, context, exc)
+            yield fallback.encode()
 
     return StreamingResponse(stream(), media_type="text/plain; charset=utf-8")
-
-
-@app.get("/chat/stream")
-async def chat_stream(message: str) -> StreamingResponse:
-    if not message.strip():
-        raise HTTPException(status_code=400, detail="Mensaje vacio.")
-
-    async def stream() -> AsyncIterator[bytes]:
-        async for chunk in chat_chunks(message):
-            yield f"data: {json.dumps({'chunk': chunk}, ensure_ascii=False)}\n\n".encode()
-        yield b"event: done\ndata: {}\n\n"
-
-    return StreamingResponse(
-        stream(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
-
-
-async def chat_chunks(message: str) -> AsyncIterator[str]:
-    local_reply = await maybe_answer_locally(message)
-    if local_reply:
-        yield local_reply
-        return
-    tool_result = await maybe_execute_json_tool(message)
-    if tool_result is not None:
-        yield json.dumps(tool_result, ensure_ascii=False, indent=2)
-        return
-    context = await gather_context()
-    try:
-        async for chunk in brain.stream_chat(message, context):
-            yield chunk
-    except Exception:
-        yield "La mente externa de JARVIS no devolvio una respuesta final."
-
-
-async def maybe_answer_locally(message: str) -> str | None:
-    normalized = " ".join(message.lower().split())
-    if normalized in {"hola", "buenas", "jarvis", "hey jarvis"}:
-        context = await gather_context()
-        return format_briefing(context, await brain.status())
-    if normalized in {"estado", "status", "sistema", "diagnostico", "diagnóstico"}:
-        context = await gather_context()
-        return format_briefing(context, await brain.status())
-    if normalized in {"herramientas", "capacidades", "tools", "ayuda", "que puedes hacer?", "qué puedes hacer?", "que puedes hacer", "qué puedes hacer"}:
-        names = ", ".join(item["name"] for item in tools.catalog())
-        return f"Puedo vigilar Umbrel, leer telemetria, revisar Docker, consultar memoria, controlar assets remotos permitidos, hablar por voz en el navegador y delegar razonamiento profundo a Codex con Sign in with ChatGPT. Si Codex no esta listo, uso Google Gemini como fallback. Capacidades locales: {names}."
-    if normalized in {"contenedores", "docker", "containers"}:
-        data = await asyncio.to_thread(docker_summary, settings)
-        if not data.get("available"):
-            return f"Docker no esta disponible: {data.get('error', 'sin detalle')}."
-        running = sum(1 for item in data.get("containers", []) if item.get("status") == "running")
-        total = len(data.get("containers", []))
-        return f"Docker operativo: {running}/{total} contenedores en ejecucion."
-    return None
-
-
-def format_briefing(context: dict[str, Any], brain_state: dict[str, Any]) -> str:
-    vitals_data = context["vitals"]
-    docker_data = context["docker"]
-    assets_data = context["assets"]
-    primary = brain_state.get("primary", {})
-    fallback = brain_state.get("fallback", {})
-    primary_state = primary.get("state", "needs_auth")
-    fallback_state = fallback.get("state", "needs_key")
-    fallback_model = fallback.get("model", "google")
-    docker_text = "Docker no disponible"
-    if docker_data.get("available"):
-        running = sum(1 for item in docker_data.get("containers", []) if item.get("status") == "running")
-        docker_text = f"{running}/{len(docker_data.get('containers', []))} contenedores activos"
-    return "\n".join(
-        [
-            f"JARVIS online. Codex: {primary_state}. Google fallback: {fallback_state} ({fallback_model}).",
-            f"Sistema: {vitals_data['status']} | CPU {vitals_data['cpu_percent']:.0f}% | RAM {vitals_data['ram_percent']:.0f}% | Disco {vitals_data['disk_percent']:.0f}%.",
-            f"Infraestructura: {docker_text}. Assets conectados: {len(assets_data)}.",
-        ]
-    )
 
 
 async def maybe_execute_json_tool(message: str) -> dict[str, Any] | None:
@@ -364,25 +310,90 @@ async def maybe_execute_json_tool(message: str) -> dict[str, Any] | None:
     return await tools.execute(str(payload["tool"]), payload.get("arguments") or {})
 
 
-async def generated_widgets() -> list[dict[str, Any]]:
-    saved = await memory.get_preference("generated_widgets")
-    return saved if isinstance(saved, list) else []
+async def audit(
+    event_type: str,
+    source: str,
+    message: str,
+    metadata: dict[str, Any] | None = None,
+    severity: str = "info",
+) -> None:
+    import uuid
+
+    await memory.record_audit(f"audit_{uuid.uuid4().hex}", event_type, source, message, metadata or {}, severity)
 
 
-async def save_generated_widget(spec: dict[str, Any]) -> dict[str, Any]:
-    widgets = await generated_widgets()
-    widget = dict(spec)
-    widget_id = str(widget.get("id") or f"jarvis-{int(asyncio.get_running_loop().time() * 1000)}")
-    widget["id"] = widget_id
-    widgets = [item for item in widgets if item.get("id") != widget_id]
-    widgets.append(widget)
-    await memory.set_preference("generated_widgets", widgets[-40:])
-    return widget
+def deep_merge(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
+    result = dict(base)
+    for key, value in patch.items():
+        if isinstance(value, dict) and isinstance(result.get(key), dict):
+            result[key] = deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+async def route_widget_command(command: str, layout: WidgetLayoutDocument, selected_id: str | None) -> dict[str, Any]:
+    normalized = " ".join(command.lower().split())
+    selected = next((item for item in layout.widgets if item.id == selected_id), None)
+    target = selected or (layout.widgets[-1] if layout.widgets else None)
+
+    if normalized in {"limpia el canvas", "limpiar canvas", "borra todo", "clear canvas"}:
+        return {"requiresConfirmation": True, "action": "clear_canvas", "message": "Clearing the canvas requires confirmation."}
+    if normalized in {"confirmar limpiar canvas", "confirma limpiar canvas", "confirm clear canvas"}:
+        count = len(layout.widgets)
+        layout.widgets = []
+        await audit("canvas.cleared", "command-router", f"Cleared {count} widgets by confirmation", {"count": count}, "warning")
+        return {"message": "Canvas cleared."}
+    if "borra" in normalized or "elimina" in normalized:
+        if target is None:
+            return {"message": "No widget selected to delete."}
+        layout.widgets = [item for item in layout.widgets if item.id != target.id]
+        await audit("widget.deleted", "command-router", f"Deleted widget {target.title}", {"id": target.id})
+        return {"message": f"Deleted {target.title}."}
+    if ("mueve" in normalized or "pon" in normalized) and target:
+        patch = target.model_dump()
+        if "arriba" in normalized:
+            patch["layout"]["y"] = 40
+        if "abajo" in normalized:
+            patch["layout"]["y"] = 620
+        if "derecha" in normalized:
+            patch["layout"]["x"] = 760
+        if "izquierda" in normalized:
+            patch["layout"]["x"] = 60
+        updated = validate_manifest(patch)
+        layout.widgets = [updated if item.id == target.id else item for item in layout.widgets]
+        await audit("widget.moved", "command-router", f"Moved widget {updated.title}", {"id": updated.id, "layout": updated.layout.model_dump()})
+        return {"widget": updated.model_dump(), "message": f"Moved {updated.title}."}
+    if ("grande" in normalized or "peque" in normalized or "resize" in normalized) and target:
+        patch = target.model_dump()
+        factor = 1.18 if "grande" in normalized else 0.84
+        patch["layout"]["w"] = max(260, min(1200, int(target.layout.w * factor)))
+        patch["layout"]["h"] = max(180, min(900, int(target.layout.h * factor)))
+        updated = validate_manifest(patch)
+        layout.widgets = [updated if item.id == target.id else item for item in layout.widgets]
+        await audit("widget.resized", "command-router", f"Resized widget {updated.title}", {"id": updated.id, "layout": updated.layout.model_dump()})
+        return {"widget": updated.model_dump(), "message": f"Resized {updated.title}."}
+    if "cada" in normalized and "seg" in normalized and target:
+        import re
+
+        match = re.search(r"cada\s+(\d+)\s*seg", normalized)
+        if match:
+            patch = target.model_dump()
+            patch["refreshInterval"] = int(match.group(1)) * 1000
+            updated = validate_manifest(patch)
+            layout.widgets = [updated if item.id == target.id else item for item in layout.widgets]
+            await audit("widget.updated", "command-router", f"Updated refresh interval for {updated.title}", {"id": updated.id, "refreshInterval": updated.refreshInterval})
+            return {"widget": updated.model_dump(), "message": f"{updated.title} refreshes every {match.group(1)} seconds."}
+
+    manifest = manifest_from_intent(command, len(layout.widgets) + 1)
+    layout.widgets.append(manifest)
+    await audit("widget.created", "command-router", f"Created widget {manifest.title}", {"id": manifest.id, "type": manifest.type})
+    return {"widget": manifest.model_dump(), "message": f"Created {manifest.title}."}
 
 
 async def gather_context() -> dict[str, Any]:
     vitals_task = asyncio.to_thread(vitals_payload, settings)
-    threats_task = threat_context()
+    threats_task = asyncio.to_thread(scan_auth_log, settings.auth_log_path)
     docker_task = asyncio.to_thread(docker_summary, settings)
     incidents_task = memory.recent_incidents(5)
     asset_task = assets.list_assets()
@@ -398,17 +409,14 @@ async def gather_context() -> dict[str, Any]:
     }
 
 
-async def threat_context() -> dict[str, object]:
-    result = await asyncio.to_thread(scan_auth_log, settings.auth_log_path)
-    if result.get("status") != "Unavailable" or not settings.system_control:
-        return result
-    journal = await asyncio.to_thread(host_auth_journal, settings)
-    if journal.get("ok"):
-        fallback = scan_auth_text(str(journal.get("output", "")).splitlines())
-        fallback["source"] = "host-journal"
-        return fallback
-    result["journal_fallback_error"] = journal.get("error")
-    return result
+def alfred_fallback(message: str, context: dict[str, Any], exc: Exception) -> str:
+    return (
+        "Hermes uplink unavailable. Local analysis follows.\n"
+        f"Request: {message}\n"
+        f"Telemetry: {json.dumps(context, ensure_ascii=False, indent=2)}\n"
+        f"Fault: {exc}\n"
+        "Recommendation: restore the Hermes endpoint before expecting conversational finesse."
+    )
 
 
 def run() -> None:
@@ -419,4 +427,3 @@ def run() -> None:
 
 if __name__ == "__main__":
     run()
-

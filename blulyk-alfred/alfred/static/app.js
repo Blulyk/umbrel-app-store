@@ -1,1095 +1,687 @@
-﻿const $ = (id) => document.getElementById(id);
+const $ = (id) => document.getElementById(id);
+
+const WIDGET_TYPES = new Set([
+  "status_card", "metric_card", "metric_grid", "line_chart", "bar_chart", "table",
+  "log_viewer", "markdown", "checklist", "form", "image_preview", "web_preview",
+  "command_panel", "service_monitor", "calendar_panel", "file_panel", "chat_panel",
+  "automation_panel", "iframe_sandbox"
+]);
 
 const state = {
-  view: { x: 0, y: 0, scale: 1 },
-  targetView: { x: 0, y: 0, scale: 1 },
-  widgets: [],
-  nextWidgetId: 1,
+  layout: { version: 1, widgets: [], canvas: { zoom: 1, offset: { x: 0, y: 0 }, grid: true } },
+  selectedId: null,
   drag: null,
+  resize: null,
   pan: null,
-  pinch: null,
-  raf: 0,
-  viewRaf: 0,
-  lastAssistantText: "",
-  recognition: null,
-  listening: false,
-  continuousListening: false,
-  activeVoiceWidget: null,
-  voices: [],
-  codexLoginTimer: null,
-  statusTimer: null
+  view: { x: 0, y: 0, scale: 1 },
+  history: [],
+  audit: [],
+  toolData: new Map(),
+  timers: new Map(),
+  readonly: false,
+  voice: { status: "idle", recognition: null, speechEnabled: false },
+  visualIntensity: 0.75
 };
 
-const widgetDefaults = {
-  chat: { title: "JARVIS Chat", x: -430, y: 250, w: 860, h: 540 },
-  metrics: { title: "Core Metrics", x: 360, y: -430, w: 430, h: 360 },
-  config: { title: "Brain Link", x: -820, y: -420, w: 500, h: 520 },
-  logs: { title: "Operational Logs", x: -910, y: 120, w: 470, h: 380 },
-  assets: { title: "Remote Assets", x: 470, y: 110, w: 470, h: 430 },
-  self: { title: "JARVIS Control", x: 120, y: -390, w: 470, h: 360 },
-  terminal: { title: "Host Console", x: 120, y: 420, w: 560, h: 360 },
-  live: { title: "Live Widget", x: 120, y: 420, w: 520, h: 360 },
-  custom: { title: "Dynamic Widget", x: 120, y: 420, w: 420, h: 300 }
-};
+window.addEventListener("load", boot);
 
-window.addEventListener("load", () => {
-  setTimeout(() => $("arcApp").classList.remove("booting"), 2050);
-  setupCanvas();
-  setupCommands();
+async function boot() {
+  bindChrome();
   resetView();
-  loadVoices();
-  refreshAll();
-  loadGeneratedWidgets();
-  state.statusTimer = setInterval(refreshAll, 30000);
-});
+  await loadLayout();
+  await refreshStatus();
+  await loadAudit();
+  renderInspector("chat");
+  renderHints();
+  setInterval(refreshStatus, 30000);
+}
 
-function setupCanvas() {
-  $("resetView").addEventListener("click", resetView);
-  $("refreshAll").addEventListener("click", refreshAll);
-  $("coreButton").addEventListener("click", () => {
-    pulseCore();
-    focusOrCreate("chat");
-  });
-  document.querySelectorAll(".dock-button").forEach((button) => {
-    button.addEventListener("click", () => focusOrCreate(button.dataset.widget));
-  });
-
-  const viewport = $("canvasViewport");
-  viewport.addEventListener("wheel", onWheel, { passive: false });
-  viewport.addEventListener("pointerdown", onCanvasPointerDown);
+function bindChrome() {
+  $("commandBar").addEventListener("submit", onCommandSubmit);
+  $("micButton").addEventListener("click", togglePushToTalk);
+  $("clearInput").addEventListener("click", () => $("commandInput").value = "");
+  $("centerCanvas").addEventListener("click", resetView);
+  $("syncCanvas").addEventListener("click", () => loadLayout(true));
+  $("openConfig").addEventListener("click", () => renderInspector("config"));
+  $("closeInspector").addEventListener("click", () => $("inspector").classList.remove("open"));
+  $("jarvisCore").addEventListener("click", () => renderInspector("chat"));
+  $("canvasViewport").addEventListener("wheel", onWheel, { passive: false });
+  $("canvasViewport").addEventListener("pointerdown", onCanvasPointerDown);
   window.addEventListener("pointermove", onPointerMove);
   window.addEventListener("pointerup", endPointerAction);
-  window.addEventListener("pointercancel", endPointerAction);
-  window.addEventListener("resize", resetView);
-  if ("speechSynthesis" in window) window.speechSynthesis.onvoiceschanged = loadVoices;
-  window.addEventListener("message", handleRuntimeMessage);
-}
-
-function setupCommands() {
-  $("commandBar").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const prompt = $("widgetCommandInput").value.trim();
-    if (!prompt) return;
-    $("widgetCommandInput").value = "";
-    toast("JARVIS estÃ¡ diseÃ±ando el widget.");
-    let spec;
-    try {
-      const data = await getJson("/widgets/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, existing_widgets: state.widgets.map((widget) => widget.type) })
-      });
-      spec = data.widget;
-    } catch {
-      const type = inferWidgetType(prompt);
-      spec = { type, title: titleFromPrompt(prompt, type), description: prompt, query: prompt, refreshSeconds: 0 };
-    }
-    const widget = addWidget(spec.type, { prompt, spec, title: spec.title, x: 140, y: 140 });
-    toast(`Widget aÃ±adido: ${widget.title}`);
-    focusWidget(widget);
-    if (spec.type === "chat") {
-      const input = widget.element.querySelector("[data-role='prompt']");
-      input.value = prompt;
-      sendChatFromWidget(widget, prompt);
-    }
+  window.addEventListener("keydown", onKeyDown);
+  document.querySelectorAll("[data-panel]").forEach((button) => {
+    button.addEventListener("click", () => renderInspector(button.dataset.panel));
+  });
+  document.querySelectorAll("[data-demo]").forEach((button) => {
+    button.addEventListener("click", () => executeCommand(demoCommand(button.dataset.demo)));
   });
 }
 
-function resetView() {
-  const viewport = $("canvasViewport");
-  state.view.scale = window.innerWidth < 720 ? 0.72 : 0.9;
-  state.view.x = viewport.clientWidth / 2;
-  state.view.y = viewport.clientHeight / 2;
-  state.targetView = { ...state.view };
-  scheduleWorldTransform();
+async function loadLayout(showToast = false) {
+  const started = performance.now();
+  const data = await getJson("/widgets");
+  state.layout = data;
+  state.selectedId = state.layout.widgets[0]?.id || null;
+  renderWidgets();
+  scheduleAllRefreshes();
+  $("latencyState").textContent = `${Math.round(performance.now() - started)} ms`;
+  if (showToast) toast("Canvas sincronizado.");
 }
 
-function onWheel(event) {
-  if (event.target.closest(".hud-widget, .dock, .command-bar, .topbar")) {
-    return;
+async function refreshStatus() {
+  try {
+    const vitals = await getJson("/vitals");
+    $("systemState").textContent = `${vitals.status} · CPU ${percent(vitals.cpu_percent)} · RAM ${percent(vitals.ram_percent)}`;
+    setCoreStatus("idle");
+  } catch {
+    $("systemState").textContent = "Offline";
+    setCoreStatus("error");
   }
+}
+
+async function loadAudit() {
+  try {
+    state.audit = await getJson("/audit?limit=80");
+  } catch {
+    state.audit = [];
+  }
+}
+
+async function onCommandSubmit(event) {
   event.preventDefault();
-  if (event.ctrlKey || event.metaKey || event.altKey) {
-    zoomAt(event.clientX, event.clientY, Math.exp(-event.deltaY * 0.0028));
-    return;
-  }
-  state.targetView.x -= event.deltaX;
-  state.targetView.y -= event.deltaY;
-  animateView();
+  const input = $("commandInput");
+  const command = input.value.trim();
+  if (!command) return;
+  input.value = "";
+  await executeCommand(command);
 }
 
-function onCanvasPointerDown(event) {
-  if (event.target.closest(".hud-widget, .arc-core, .dock, .command-bar, .topbar")) return;
-  if (event.pointerType === "touch") {
-    trackTouchPointer(event);
-    return;
+async function executeCommand(command) {
+  state.history.unshift(command);
+  state.history = state.history.slice(0, 8);
+  setCoreStatus("thinking");
+  toast("JARVIS procesando comando.");
+  try {
+    const data = await getJson("/widgets/command", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ command, selected_widget_id: state.selectedId })
+    });
+    if (data.requiresConfirmation) {
+      renderInspector("confirm", data);
+      setCoreStatus("idle");
+      return;
+    }
+    state.layout = data.layout;
+    if (data.widget) state.selectedId = data.widget.id;
+    renderWidgets();
+    scheduleAllRefreshes();
+    await loadAudit();
+    renderHints();
+    toast(data.message || "Comando ejecutado.");
+    setCoreStatus("success");
+    setTimeout(() => setCoreStatus("idle"), 700);
+  } catch (error) {
+    toast(error.message);
+    setCoreStatus("error");
   }
-  state.pan = { x: event.clientX, y: event.clientY, ox: state.targetView.x, oy: state.targetView.y };
-  $("canvasViewport").setPointerCapture(event.pointerId);
 }
 
-function onPointerMove(event) {
-  if (state.pinch && state.pinch.points.has(event.pointerId)) {
-    state.pinch.points.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    updatePinch();
-    return;
-  }
-  if (state.pan) {
-    state.targetView.x = state.pan.ox + event.clientX - state.pan.x;
-    state.targetView.y = state.pan.oy + event.clientY - state.pan.y;
-    animateView();
-    return;
-  }
-  if (!state.drag) return;
-  const widget = state.widgets.find((item) => item.id === state.drag.id);
-  if (!widget) return;
-  const dx = (event.clientX - state.drag.x) / state.view.scale;
-  const dy = (event.clientY - state.drag.y) / state.view.scale;
-  if (state.drag.mode === "move") {
-    widget.x = state.drag.ox + dx;
-    widget.y = state.drag.oy + dy;
-  } else {
-    widget.w = clamp(state.drag.ow + dx, 300, 980);
-    widget.h = clamp(state.drag.oh + dy, 220, 820);
-  }
-  scheduleWidgetTransform(widget);
+function renderWidgets() {
+  const layer = $("widgetLayer");
+  layer.innerHTML = "";
+  state.layout.widgets.forEach((manifest) => {
+    const element = document.createElement("article");
+    element.className = `widget-frame ${manifest.id === state.selectedId ? "selected" : ""}`;
+    element.dataset.widgetId = manifest.id;
+    element.style.transform = `translate3d(${manifest.layout.x}px, ${manifest.layout.y}px, 0)`;
+    element.style.width = `${manifest.layout.w}px`;
+    element.style.height = `${manifest.layout.h}px`;
+    element.style.zIndex = manifest.layout.zIndex;
+    element.innerHTML = widgetFrameHtml(manifest);
+    bindWidgetElement(element, manifest);
+    layer.appendChild(element);
+    refreshWidgetData(manifest).catch(() => {});
+  });
 }
 
-function endPointerAction() {
-  if (state.pinch) {
-    state.pinch.points.clear();
-    state.pinch = null;
-  }
-  state.pan = null;
-  state.drag = null;
-}
-
-function addWidget(type, overrides = {}) {
-  const defaults = widgetDefaults[type] || widgetDefaults.custom;
-  const widget = {
-    id: `w${state.nextWidgetId++}`,
-    type,
-    title: overrides.title || defaults.title,
-    savedId: overrides.savedId || overrides.spec?.id || "",
-    prompt: overrides.prompt || "",
-    spec: overrides.spec || {},
-    x: overrides.x ?? defaults.x,
-    y: overrides.y ?? defaults.y,
-    w: overrides.w ?? overrides.spec?.size?.w ?? defaults.w,
-    h: overrides.h ?? overrides.spec?.size?.h ?? defaults.h
-  };
-  const element = document.createElement("article");
-  element.className = `hud-widget widget-${type}`;
-  element.dataset.widgetId = widget.id;
-  element.innerHTML = widgetShell(widget);
-  widget.element = element;
-  $("widgetLayer").appendChild(element);
-  state.widgets.push(widget);
-  bindWidget(widget);
-  scheduleWidgetTransform(widget);
-  requestAnimationFrame(() => element.classList.add("online"));
-  loadWidgetData(widget);
-  return widget;
-}
-
-function widgetShell(widget) {
+function widgetFrameHtml(widget) {
   return `
-    <div class="widget-frame" aria-hidden="true"></div>
-    <header class="widget-head" data-drag-handle>
-      <div><p class="eyebrow">${escapeHtml(widget.type)}</p><h2>${escapeHtml(widget.title)}</h2></div>
+    <header class="widget-toolbar" data-drag-handle>
+      <div>
+        <span class="widget-status ${escapeHtml(widget.status)}">${escapeHtml(widget.status)}</span>
+        <h3>${escapeHtml(widget.title)}</h3>
+        ${widget.description ? `<p>${escapeHtml(widget.description)}</p>` : ""}
+      </div>
       <div class="widget-actions">
-        <button class="mini-button" data-action="refresh" type="button">SYNC</button>
-        <button class="mini-button" data-action="close" type="button">X</button>
+        <button data-widget-action="refresh" aria-label="Refrescar">↻</button>
+        <button data-widget-action="expand" aria-label="Expandir">□</button>
+        <button data-widget-action="pin" aria-label="Fijar">⌖</button>
+        <button data-widget-action="duplicate" aria-label="Duplicar">⧉</button>
+        <button data-widget-action="config" aria-label="Configurar">⚙</button>
+        <button data-widget-action="close" aria-label="Cerrar">×</button>
       </div>
     </header>
-    <section class="widget-body">${widgetContent(widget)}</section>
-    <button class="resize-handle" data-resize-handle type="button" aria-label="Redimensionar"></button>
-  `;
+    <section class="widget-body" data-widget-body>${renderWidgetBody(widget)}</section>
+    <footer class="widget-foot"><span data-last-updated>Sin actualizar</span><span>${escapeHtml(widget.type)}</span></footer>
+    <button class="resize-handle" data-resize-handle aria-label="Redimensionar"></button>`;
 }
 
-function widgetContent(widget) {
-  if (widget.spec?.runtime) return renderLiveWidget(widget);
-  if (widget.type === "chat") return `
-    <div class="transcript" data-role="transcript" aria-live="polite"></div>
-    <form class="composer" data-role="chat-form">
-      <input data-role="prompt" autocomplete="off" placeholder="Pregunta, orden o llamada JSON">
-      <button class="send-button" type="submit">SEND</button>
-    </form>
-    <div class="voice-row">
-      <label class="voice-toggle"><input data-role="voice" type="checkbox"><span>Voz grave</span></label>
-      <button class="mini-button" data-action="listen" type="button">MIC</button>
-      <button class="mini-button" data-action="repeat" type="button">RPT</button>
-      <button class="mini-button danger" data-action="stop" type="button">STOP</button>
-      <button class="mini-button" data-action="clear" type="button">CLR</button>
-    </div>`;
-  if (widget.type === "metrics") return `
-    <div class="metric-grid">
-      <article class="metric"><span>CPU</span><strong data-role="cpu">--</strong><small data-role="temp">Temp --</small></article>
-      <article class="metric"><span>RAM</span><strong data-role="ram">--</strong><small>Presion de memoria</small></article>
-      <article class="metric"><span>Disco</span><strong data-role="disk">--</strong><small>Volumen raiz</small></article>
-      <article class="metric"><span>Perimetro</span><strong data-role="threat">--</strong><small data-role="threat-detail">Sin escaneo</small></article>
-    </div>
-    <div class="list" data-role="containers"></div>`;
-  if (widget.type === "config") return `
-    <div class="stack">
-      <section class="holo-block">
-        <h3>OpenAI Codex</h3>
-        <button class="primary-button" data-action="codex-login" type="button">Iniciar sesion con OpenAI</button>
-        <div class="login-code" data-role="codex-box" hidden>
-          <a data-role="codex-url" href="#" target="_blank" rel="noopener">Abrir login</a>
-          <strong data-role="codex-code">----</strong>
-          <span data-role="codex-status">Esperando autorizacion.</span>
-        </div>
-      </section>
-      <section class="holo-block">
-        <h3>Google Gemini Fallback</h3>
-        <form class="settings-form" data-role="google-form">
-          <input data-role="google-key" type="password" autocomplete="off" placeholder="GOOGLE_API_KEY">
-          <input data-role="google-model" autocomplete="off" placeholder="gemini-2.5-flash-lite">
-          <button class="mini-button" type="submit">Guardar</button>
-        </form>
-        <button class="mini-button wide" data-action="test-google" type="button">Probar Gemini</button>
-      </section>
-      <section class="holo-block">
-        <h3>Google OAuth2</h3>
-        <p class="muted" data-role="google-oauth-status">Consultando estado.</p>
-        <a class="primary-link" href="/oauth/google/start" target="_blank" rel="noopener">Conectar Google OAuth</a>
-      </section>
-      <pre class="output" data-role="brain-output"></pre>
-    </div>`;
-  if (widget.type === "logs") return `
-    <div class="section-head"><h3>Memoria Operativa</h3><button class="mini-button" data-action="reload-incidents" type="button">Revisar</button></div>
-    <div class="list" data-role="incidents"></div>
-    <div class="section-head"><h3>Capacidades</h3></div>
-    <div class="list" data-role="capabilities"></div>`;
-  if (widget.type === "assets") return `
-    <div class="section-head"><h3>Assets Conectados</h3><button class="mini-button" data-action="load-bridge" type="button">Puente</button></div>
-    <div class="list" data-role="assets"></div>
-    <div class="control-grid">
-      <input data-role="asset-id" value="main-pc" aria-label="Asset id">
-      <select data-role="asset-action" aria-label="Accion">
-        <option value="ping">Ping</option><option value="process_audit">Auditar procesos</option><option value="launch">Abrir app</option><option value="lock">Bloquear</option><option value="sleep">Suspender</option>
-      </select>
-      <input data-role="asset-app" placeholder="Clave de app">
-      <button class="mini-button" data-action="asset-command" type="button">Ejecutar</button>
-    </div>
-    <pre class="output" data-role="asset-output"></pre>`;
-  if (widget.type === "self") return `
-    <div class="dynamic-widget">
-      <p class="muted">${escapeHtml(widget.spec.description || "Control operativo de JARVIS")}</p>
-      <div class="control-grid">
-        <button class="mini-button" data-action="self-status" type="button">Estado propio</button>
-        <button class="mini-button danger" data-action="self-restart" type="button">Reiniciar JARVIS</button>
-      </div>
-      <pre class="output" data-role="self-output"></pre>
-    </div>`;
-  if (widget.type === "terminal") return `
-    <div class="dynamic-widget">
-      <p class="muted">${escapeHtml(widget.spec.description || "Comandos confirmados en el host Umbrel")}</p>
-      <form class="composer" data-role="terminal-form">
-        <input data-role="terminal-command" autocomplete="off" placeholder="Comando host confirmado">
-        <button class="send-button" type="submit">RUN</button>
-      </form>
-      <pre class="output" data-role="terminal-output"></pre>
-    </div>`;
-  return `
-    <div class="dynamic-widget">
-      ${renderGeneratedWidget(widget)}
-    </div>`;
-}
-
-function renderLiveWidget(widget) {
-  return `<iframe class="live-frame" data-role="live-frame" sandbox="allow-scripts allow-forms allow-popups allow-modals" title="${escapeHtml(widget.title)}"></iframe>`;
-}
-
-function renderGeneratedWidget(widget) {
-  const custom = widget.spec.custom || {};
-  const fields = Array.isArray(custom.fields) ? custom.fields : [];
-  const actions = Array.isArray(custom.actions) ? custom.actions : [];
-  const notes = Array.isArray(custom.notes) ? custom.notes : [];
-  return `
-    <p class="muted">${escapeHtml(widget.spec.description || "Widget generado por JARVIS")}</p>
-    <form class="generated-form" data-role="generated-form">
-      ${fields.map(renderGeneratedField).join("") || `<div class="generated-note">Sin campos. Usa acciones directas.</div>`}
-      <div class="generated-actions">
-        ${actions.map((action) => `<button class="mini-button" data-generated-action="${escapeHtml(action.id)}" type="button">${escapeHtml(action.label || action.id)}</button>`).join("") || `<button class="mini-button" data-generated-action="show" type="button">Mostrar</button>`}
-      </div>
-    </form>
-    ${notes.length ? `<div class="telemetry-lines">${notes.map((note) => `<span>${escapeHtml(note)}</span>`).join("")}</div>` : ""}
-    <pre class="output generated-output" data-role="generated-output"></pre>`;
-}
-
-function renderGeneratedField(field) {
-  const id = escapeHtml(field.id || "value");
-  const label = escapeHtml(field.label || field.id || "Valor");
-  const placeholder = escapeHtml(field.placeholder || "");
-  if (field.type === "textarea") {
-    return `<label class="generated-field"><span>${label}</span><textarea data-generated-field="${id}" placeholder="${placeholder}"></textarea></label>`;
+function renderWidgetBody(widget) {
+  if (!WIDGET_TYPES.has(widget.type)) return errorState("Tipo de widget no soportado.");
+  if (widget.status === "error") return errorState("El widget informó de un error.");
+  const data = state.toolData.get(widget.id);
+  switch (widget.type) {
+    case "status_card": return statusCard(widget, data);
+    case "metric_card": return metricCard(widget, data);
+    case "metric_grid": return metricGrid(widget, data);
+    case "line_chart": return chartWidget(widget, data, "line");
+    case "bar_chart": return chartWidget(widget, data, "bar");
+    case "table": return tableWidget(widget, data);
+    case "log_viewer": return logViewer(widget, data);
+    case "markdown": return markdownWidget(widget);
+    case "checklist": return checklistWidget(widget);
+    case "form": return formWidget(widget);
+    case "image_preview": return imagePreview(widget);
+    case "web_preview": return webPreview(widget);
+    case "command_panel": return commandPanel(widget);
+    case "service_monitor": return serviceMonitor(widget, data);
+    case "calendar_panel": return calendarPanel(widget, data);
+    case "file_panel": return filePanel(widget);
+    case "chat_panel": return chatPanel(widget);
+    case "automation_panel": return automationPanel(widget);
+    case "iframe_sandbox": return iframeSandbox(widget);
+    default: return emptyState("Preparado.");
   }
-  if (field.type === "select") {
-    const options = Array.isArray(field.options) ? field.options : [];
-    return `<label class="generated-field"><span>${label}</span><select data-generated-field="${id}">${options.map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join("")}</select></label>`;
-  }
-  const type = ["search", "number", "text"].includes(field.type) ? field.type : "text";
-  return `<label class="generated-field"><span>${label}</span><input data-generated-field="${id}" type="${type}" placeholder="${placeholder}" autocomplete="off"></label>`;
 }
 
-function bindWidget(widget) {
-  const element = widget.element;
+function bindWidgetElement(element, widget) {
+  element.addEventListener("pointerdown", () => selectWidget(widget.id));
   element.querySelector("[data-drag-handle]").addEventListener("pointerdown", (event) => {
-    if (event.target.closest("button, a, input, select, textarea, label")) return;
-    state.drag = { id: widget.id, mode: "move", x: event.clientX, y: event.clientY, ox: widget.x, oy: widget.y };
+    if (state.readonly || widget.layout.locked || event.target.closest("button")) return;
+    state.drag = { id: widget.id, x: event.clientX, y: event.clientY, ox: widget.layout.x, oy: widget.layout.y };
     event.currentTarget.setPointerCapture(event.pointerId);
   });
   element.querySelector("[data-resize-handle]").addEventListener("pointerdown", (event) => {
+    if (state.readonly || widget.layout.locked) return;
     event.stopPropagation();
-    state.drag = { id: widget.id, mode: "resize", x: event.clientX, y: event.clientY, ow: widget.w, oh: widget.h };
+    state.resize = { id: widget.id, x: event.clientX, y: event.clientY, ow: widget.layout.w, oh: widget.layout.h };
     event.currentTarget.setPointerCapture(event.pointerId);
   });
   element.addEventListener("click", (event) => {
-    const action = event.target.closest("[data-action]")?.dataset.action;
-    if (!action) return;
+    const action = event.target.closest("[data-widget-action]")?.dataset.widgetAction;
+    if (action) handleWidgetChromeAction(widget, action);
+  });
+  element.querySelectorAll("[data-run-action]").forEach((button) => {
+    button.addEventListener("click", () => runWidgetAction(widget, button.dataset.runAction));
+  });
+  element.querySelectorAll("[data-check-id]").forEach((input) => {
+    input.addEventListener("change", () => updateChecklist(widget, input.dataset.checkId, input.checked));
+  });
+  element.querySelectorAll("[data-form-submit]").forEach((button) => {
+    button.addEventListener("click", () => toast("Entrada manual registrada localmente."));
+  });
+  element.querySelectorAll("[data-run-command]").forEach((button) => {
+    button.addEventListener("click", () => executeCommand(button.dataset.runCommand));
+  });
+}
+
+function selectWidget(id) {
+  state.selectedId = id;
+  const maxZ = Math.max(1, ...state.layout.widgets.map((item) => item.layout.zIndex));
+  const widget = getWidget(id);
+  if (widget && !widget.layout.pinned) {
+    widget.layout.zIndex = maxZ + 1;
+    saveWidgetPatch(id, { layout: { zIndex: widget.layout.zIndex } }).catch(() => {});
+  }
+  renderWidgets();
+}
+
+async function handleWidgetChromeAction(widget, action) {
+  if (action === "refresh") return refreshWidgetData(widget, true);
+  if (action === "close") return deleteWidget(widget.id);
+  if (action === "duplicate") return duplicateWidget(widget.id);
+  if (action === "config") return renderInspector("widget", widget);
+  if (action === "pin") return saveAndReload(widget.id, { layout: { pinned: !widget.layout.pinned } });
+  if (action === "expand") return saveAndReload(widget.id, { layout: { expanded: !widget.layout.expanded, w: widget.layout.expanded ? 420 : 760, h: widget.layout.expanded ? 280 : 560 } });
+}
+
+async function saveWidgetPatch(id, patch) {
+  const data = await getJson(`/widgets/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ patch })
+  });
+  state.layout = data.layout;
+  return data;
+}
+
+async function saveAndReload(id, patch) {
+  await saveWidgetPatch(id, patch);
+  renderWidgets();
+}
+
+async function deleteWidget(id) {
+  const data = await getJson(`/widgets/${encodeURIComponent(id)}`, { method: "DELETE" });
+  state.layout = data.layout;
+  state.selectedId = state.layout.widgets[0]?.id || null;
+  renderWidgets();
+  await loadAudit();
+}
+
+async function duplicateWidget(id) {
+  const data = await getJson(`/widgets/${encodeURIComponent(id)}/duplicate`, { method: "POST" });
+  state.layout = data.layout;
+  state.selectedId = data.widget.id;
+  renderWidgets();
+}
+
+async function runWidgetAction(widget, actionId) {
+  const action = widget.actions.find((item) => item.id === actionId);
+  const confirmRun = !action?.requiresConfirmation || confirm(`Ejecutar "${action.label}" (${action.dangerLevel})?`);
+  if (!confirmRun) return;
+  const data = await getJson(`/widgets/${encodeURIComponent(widget.id)}/actions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action_id: actionId, confirm: true })
+  });
+  toast(data.result?.error || data.result?.result?.message || "Acción ejecutada.");
+  await loadAudit();
+}
+
+async function refreshWidgetData(widget, manual = false) {
+  const source = widget.dataSource || { type: "mock" };
+  let data = mockDataFor(widget);
+  try {
+    if (source.type === "internal_tool" && source.toolName) {
+      const response = await getJson("/tools", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tool: source.toolName, arguments: source.params || {} })
+      });
+      data = response.result || response;
+    } else if (source.type === "http_endpoint" && safeUrl(source.endpoint || "")) {
+      data = await getJson(source.endpoint);
+    } else if (source.type === "static") {
+      data = source.params || {};
+    }
+    state.toolData.set(widget.id, data);
+    const frame = document.querySelector(`[data-widget-id="${CSS.escape(widget.id)}"]`);
+    if (frame) {
+      frame.querySelector("[data-widget-body]").innerHTML = renderWidgetBody(widget);
+      frame.querySelector("[data-last-updated]").textContent = `Actualizado ${new Date().toLocaleTimeString()}`;
+      bindWidgetElement(frame, widget);
+    }
+    if (manual) toast(`${widget.title} actualizado.`);
+  } catch (error) {
+    state.toolData.set(widget.id, { error: error.message });
+  }
+}
+
+function scheduleAllRefreshes() {
+  state.timers.forEach((timer) => clearInterval(timer));
+  state.timers.clear();
+  state.layout.widgets.forEach((widget) => {
+    const interval = widget.refreshInterval || widget.dataSource?.refreshInterval || 0;
+    if (interval > 0) {
+      state.timers.set(widget.id, setInterval(() => refreshWidgetData(widget), interval));
+    }
+  });
+}
+
+function onPointerMove(event) {
+  if (state.pan) {
+    state.view.x = state.pan.ox + event.clientX - state.pan.x;
+    state.view.y = state.pan.oy + event.clientY - state.pan.y;
+    applyView();
+    return;
+  }
+  if (state.drag) {
+    const widget = getWidget(state.drag.id);
+    if (!widget) return;
+    widget.layout.x = snap(state.drag.ox + (event.clientX - state.drag.x) / state.view.scale);
+    widget.layout.y = snap(state.drag.oy + (event.clientY - state.drag.y) / state.view.scale);
+    updateWidgetTransform(widget);
+  }
+  if (state.resize) {
+    const widget = getWidget(state.resize.id);
+    if (!widget) return;
+    widget.layout.w = Math.max(260, snap(state.resize.ow + (event.clientX - state.resize.x) / state.view.scale));
+    widget.layout.h = Math.max(180, snap(state.resize.oh + (event.clientY - state.resize.y) / state.view.scale));
+    updateWidgetTransform(widget);
+  }
+}
+
+function endPointerAction() {
+  const changed = state.drag?.id || state.resize?.id;
+  state.drag = null;
+  state.resize = null;
+  state.pan = null;
+  if (changed) {
+    const widget = getWidget(changed);
+    if (widget) saveWidgetPatch(widget.id, { layout: widget.layout }).catch(() => {});
+  }
+}
+
+function updateWidgetTransform(widget) {
+  const element = document.querySelector(`[data-widget-id="${CSS.escape(widget.id)}"]`);
+  if (!element) return;
+  element.style.transform = `translate3d(${widget.layout.x}px, ${widget.layout.y}px, 0)`;
+  element.style.width = `${widget.layout.w}px`;
+  element.style.height = `${widget.layout.h}px`;
+}
+
+function onCanvasPointerDown(event) {
+  if (event.target.closest(".widget-frame, .command-bar, .topbar, .sidebar, .inspector, .jarvis-core")) return;
+  state.pan = { x: event.clientX, y: event.clientY, ox: state.view.x, oy: state.view.y };
+}
+
+function onWheel(event) {
+  if (event.target.closest(".widget-frame, .command-bar, .inspector")) return;
+  event.preventDefault();
+  if (event.ctrlKey || event.metaKey) state.view.scale = Math.max(0.45, Math.min(1.8, state.view.scale * Math.exp(-event.deltaY * 0.002)));
+  else {
+    state.view.x -= event.deltaX;
+    state.view.y -= event.deltaY;
+  }
+  applyView();
+}
+
+function resetView() {
+  state.view = { x: window.innerWidth / 2, y: window.innerHeight / 2, scale: window.innerWidth < 760 ? 0.74 : 0.92 };
+  applyView();
+}
+
+function applyView() {
+  $("canvasWorld").style.transform = `translate3d(${state.view.x}px, ${state.view.y}px, 0) scale(${state.view.scale})`;
+}
+
+function onKeyDown(event) {
+  if (event.ctrlKey && event.code === "Space") {
     event.preventDefault();
-    event.stopPropagation();
-    handleWidgetAction(widget, action);
-  });
-  const chatForm = element.querySelector("[data-role='chat-form']");
-  if (chatForm) {
-    chatForm.addEventListener("submit", (event) => {
-      event.preventDefault();
-      const input = element.querySelector("[data-role='prompt']");
-      const message = input.value.trim();
-      if (!message) return;
-      input.value = "";
-      sendChatFromWidget(widget, message);
-    });
+    togglePushToTalk();
   }
-  const googleForm = element.querySelector("[data-role='google-form']");
-  if (googleForm) googleForm.addEventListener("submit", (event) => saveGoogleSettings(event, widget));
-  const terminalForm = element.querySelector("[data-role='terminal-form']");
-  if (terminalForm) terminalForm.addEventListener("submit", (event) => runTerminalCommand(event, widget));
-  const generatedForm = element.querySelector("[data-role='generated-form']");
-  if (generatedForm) {
-    generatedForm.addEventListener("submit", (event) => {
-      event.preventDefault();
-      runGeneratedAction(widget, widget.spec.custom?.actions?.[0]?.id || "show");
-    });
-    generatedForm.addEventListener("click", (event) => {
-      const actionId = event.target.closest("[data-generated-action]")?.dataset.generatedAction;
-      if (!actionId) return;
-      event.preventDefault();
-      runGeneratedAction(widget, actionId);
-    });
-  }
-  const liveFrame = element.querySelector("[data-role='live-frame']");
-  if (liveFrame) mountLiveWidget(widget, liveFrame);
-}
-
-async function handleWidgetAction(widget, action) {
-  if (action === "close") return closeWidget(widget);
-  if (action === "refresh") return loadWidgetData(widget);
-  if (action === "listen") return toggleDictation(widget);
-  if (action === "repeat") return speak(widget, state.lastAssistantText, true);
-  if (action === "stop") return stopVoice();
-  if (action === "clear") {
+  if (event.key === "Escape") {
     stopVoice();
-    const transcript = widget.element.querySelector("[data-role='transcript']");
-    if (transcript) transcript.innerHTML = "";
-    return;
-  }
-  if (action === "codex-login") return startCodexLogin(widget);
-  if (action === "test-google") return testGoogleSettings(widget);
-  if (action === "reload-incidents") return loadStatus();
-  if (action === "load-bridge") return loadBridgeConfig(widget);
-  if (action === "asset-command") return sendAssetCommand(widget);
-  if (action === "self-status") return loadSelfStatus(widget);
-  if (action === "self-restart") return restartSelf(widget);
-}
-
-function closeWidget(widget) {
-  widget.element.remove();
-  state.widgets = state.widgets.filter((item) => item.id !== widget.id);
-  if (widget.savedId) {
-    fetch(`/widgets/${encodeURIComponent(widget.savedId)}`, { method: "DELETE" }).catch(() => {});
+    $("inspector").classList.remove("open");
   }
 }
 
-function focusOrCreate(type) {
-  const widget = state.widgets.find((item) => item.type === type) || addWidget(type);
-  focusWidget(widget);
-}
-
-function focusWidget(widget) {
-  widget.element.classList.add("focused");
-  setTimeout(() => widget.element.classList.remove("focused"), 850);
-  state.targetView.x = $("canvasViewport").clientWidth / 2 - (widget.x + widget.w / 2) * state.targetView.scale;
-  state.targetView.y = $("canvasViewport").clientHeight / 2 - (widget.y + widget.h / 2) * state.targetView.scale;
-  animateView();
-  const input = widget.element.querySelector("[data-role='prompt']");
-  if (input) setTimeout(() => input.focus(), 180);
-}
-
-function pulseCore() {
-  $("arcApp").classList.add("core-fired");
-  setTimeout(() => $("arcApp").classList.remove("core-fired"), 900);
-}
-
-async function sendChatFromWidget(widget, message) {
-  appendMessage(widget, "user", message);
-  const assistant = appendMessage(widget, "assistant", "Pensando.");
-  try {
-    assistant.textContent = "";
-    let streamed = false;
-    if ("EventSource" in window) {
-      streamed = await streamWithSse(message, (chunk) => {
-        assistant.textContent += chunk;
-        scrollTranscript(widget);
-      });
-    }
-    if (!streamed) {
-      await streamWithFetch(message, (chunk) => {
-        assistant.textContent += chunk;
-        scrollTranscript(widget);
-      });
-    }
-    state.lastAssistantText = cleanAssistantText(assistant.textContent);
-    assistant.textContent = state.lastAssistantText || "Sin respuesta.";
-    speak(widget, state.lastAssistantText, false);
-  } catch (error) {
-    assistant.textContent = `Fallo de enlace: ${error.message}`;
-  }
-}
-
-function streamWithSse(message, onChunk) {
-  return new Promise((resolve) => {
-    const source = new EventSource(`/chat/stream?message=${encodeURIComponent(message)}`);
-    let received = false;
-    source.onmessage = (event) => {
-      received = true;
-      const data = JSON.parse(event.data);
-      onChunk(data.chunk || "");
-    };
-    source.addEventListener("done", () => {
-      source.close();
-      resolve(received);
-    });
-    source.onerror = () => {
-      source.close();
-      resolve(received);
-    };
-  });
-}
-
-async function streamWithFetch(message, onChunk) {
-  const response = await fetch("/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message })
-  });
-  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    onChunk(decoder.decode(value, { stream: true }));
-  }
-}
-
-function appendMessage(widget, role, content) {
-  const transcript = widget.element.querySelector("[data-role='transcript']");
-  const node = document.createElement("div");
-  node.className = `message ${role}`;
-  node.textContent = content;
-  transcript.appendChild(node);
-  scrollTranscript(widget);
-  return node;
-}
-
-function scrollTranscript(widget) {
-  const transcript = widget.element.querySelector("[data-role='transcript']");
-  if (transcript) transcript.scrollTop = transcript.scrollHeight;
-}
-
-async function refreshAll() {
-  await Promise.allSettled([loadStatus(), loadAssets(), loadGoogleOAuthStatus()]);
-}
-
-async function loadGeneratedWidgets() {
-  try {
-    const data = await getJson("/widgets");
-    const widgets = Array.isArray(data.widgets) ? data.widgets : [];
-    widgets.forEach((spec, index) => {
-      if (!spec?.id || state.widgets.some((widget) => widget.savedId === spec.id)) return;
-      addWidget(spec.type || "live", {
-        spec,
-        title: spec.title,
-        savedId: spec.id,
-        x: 120 + index * 28,
-        y: 120 + index * 28,
-        w: spec.size?.w,
-        h: spec.size?.h
-      });
-    });
-  } catch {
-    // Generated widgets are optional; the dashboard stays usable without them.
-  }
-}
-
-async function loadWidgetData(widget) {
-  if (widget.type === "metrics" || widget.type === "logs" || widget.type === "config") await loadStatus();
-  if (widget.type === "assets") await loadAssets();
-  if (widget.type === "config") await loadGoogleOAuthStatus();
-}
-
-async function loadStatus() {
-  const data = await getJson("/status");
-  const context = data.context || {};
-  const vitals = context.vitals || {};
-  const threats = context.threats || {};
-  const docker = context.docker || {};
-  const primary = data.brain?.primary || {};
-  const fallback = data.brain?.fallback || {};
-  $("brainState").textContent = primary.state === "ready" ? "CODEX ONLINE" : fallback.state === "ready" ? "GEMINI ONLINE" : "AUTH REQUIRED";
-
-  state.widgets.filter((widget) => widget.type === "metrics").forEach((widget) => {
-    setText(widget, "cpu", percent(vitals.cpu_percent));
-    setText(widget, "ram", percent(vitals.ram_percent));
-    setText(widget, "disk", percent(vitals.disk_percent));
-    setText(widget, "temp", vitals.cpu_temperature_c === null ? "Temp no disponible" : `${Number(vitals.cpu_temperature_c).toFixed(1)} C`);
-    setText(widget, "threat", threats.status || "--");
-    setText(widget, "threat-detail", threats.summary || "Sin escaneo");
-    const containers = widget.element.querySelector("[data-role='containers']");
-    if (containers) containers.innerHTML = renderContainers(docker);
-  });
-
-  state.widgets.filter((widget) => widget.type === "logs").forEach((widget) => {
-    const incidents = widget.element.querySelector("[data-role='incidents']");
-    const capabilities = widget.element.querySelector("[data-role='capabilities']");
-    if (incidents) incidents.innerHTML = (context.recent_incidents || []).map((item) => row(item.summary, `${item.category} - ${item.created_at}`, "warning")).join("") || row("Sin incidentes", "Memoria limpia", "");
-    if (capabilities) capabilities.innerHTML = (data.capabilities || []).map((item) => row(item.name, JSON.stringify(item.arguments), "")).join("");
-  });
-
-  state.widgets.filter((widget) => widget.type === "config").forEach((widget) => {
-    setRoleText(widget, "brain-output", JSON.stringify(data.brain, null, 2));
-  });
-}
-
-async function saveGoogleSettings(event, widget) {
-  event.preventDefault();
-  const apiKey = widget.element.querySelector("[data-role='google-key']").value.trim();
-  const model = widget.element.querySelector("[data-role='google-model']").value.trim();
-  if (!apiKey) return setRoleText(widget, "brain-output", "Introduce una GOOGLE_API_KEY.");
-  setRoleText(widget, "brain-output", "Guardando fallback Google.");
-  try {
-    const data = await getJson("/settings/google", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ api_key: apiKey, model: model || null })
-    });
-    widget.element.querySelector("[data-role='google-key']").value = "";
-    setRoleText(widget, "brain-output", JSON.stringify(data.brain, null, 2));
-    await testGoogleSettings(widget);
-  } catch (error) {
-    setRoleText(widget, "brain-output", error.message);
-  }
-}
-
-async function testGoogleSettings(widget) {
-  setRoleText(widget, "brain-output", "Probando Google Gemini.");
-  try {
-    const data = await getJson("/settings/google/test", { method: "POST", headers: { "Content-Type": "application/json" } });
-    setRoleText(widget, "brain-output", `${data.ok ? "Google Gemini operativo." : "Google Gemini no respondio."}\n\n${data.response}`);
-    await loadStatus();
-  } catch (error) {
-    setRoleText(widget, "brain-output", error.message);
-  }
-}
-
-async function loadGoogleOAuthStatus() {
-  try {
-    const data = await getJson("/settings/google/oauth/status");
-    state.widgets.filter((widget) => widget.type === "config").forEach((widget) => {
-      setRoleText(widget, "google-oauth-status", `${data.connected ? "Conectado" : "Sin conectar"} - ${data.detail} Redirect: ${data.redirect_uri}`);
-    });
-  } catch {
-    state.widgets.filter((widget) => widget.type === "config").forEach((widget) => setRoleText(widget, "google-oauth-status", "OAuth no disponible."));
-  }
-}
-
-async function startCodexLogin(widget) {
-  const box = widget.element.querySelector("[data-role='codex-box']");
-  box.hidden = false;
-  setRoleText(widget, "codex-status", "Generando codigo de OpenAI.");
-  try {
-    const data = await getJson("/settings/codex-login/start", { method: "POST", headers: { "Content-Type": "application/json" } });
-    renderCodexLogin(widget, data.login);
-    if (state.codexLoginTimer) clearInterval(state.codexLoginTimer);
-    if (data.login.state !== "connected") state.codexLoginTimer = setInterval(() => pollCodexLogin(widget), 3000);
-  } catch (error) {
-    setRoleText(widget, "codex-status", error.message);
-  }
-}
-
-async function pollCodexLogin(widget) {
-  try {
-    const data = await getJson("/settings/codex-login/status");
-    renderCodexLogin(widget, data.login);
-    if (["connected", "failed", "expired"].includes(data.login.state)) {
-      clearInterval(state.codexLoginTimer);
-      state.codexLoginTimer = null;
-      await loadStatus();
-    }
-  } catch (error) {
-    setRoleText(widget, "codex-status", error.message);
-  }
-}
-
-function renderCodexLogin(widget, login) {
-  const box = widget.element.querySelector("[data-role='codex-box']");
-  box.hidden = false;
-  const url = widget.element.querySelector("[data-role='codex-url']");
-  if (login.url) {
-    url.href = login.url;
-    url.textContent = login.url;
-  }
-  if (login.code) setRoleText(widget, "codex-code", login.code);
-  const labels = {
-    waiting_for_browser: "Abre OpenAI, introduce el codigo y autoriza Codex.",
-    connected: "Codex conectado con tu cuenta de OpenAI.",
-    failed: login.detail || "No se pudo completar el login.",
-    expired: login.detail || "El codigo ha caducado.",
-    idle: "Sin login activo."
-  };
-  setRoleText(widget, "codex-status", labels[login.state] || login.state || "Esperando.");
-}
-
-async function loadAssets() {
-  const data = await getJson("/assets");
-  state.widgets.filter((widget) => widget.type === "assets").forEach((widget) => {
-    const target = widget.element.querySelector("[data-role='assets']");
-    target.innerHTML = data.map((item) => row(item.asset_id, `Conectado ${item.connected_at}`, "")).join("") || row("Sin assets", "Arranca el puente remoto", "warning");
-  });
-}
-
-async function loadBridgeConfig(widget) {
-  const data = await getJson("/asset-bridge/config");
-  const origin = window.location.origin.replace(/^http/, "ws");
-  setRoleText(widget, "asset-output", `python asset_bridge.py --server ${origin}${data.websocket_path} --asset-id ${data.asset_id} --key "${data.bridge_key}"`);
-}
-
-async function sendAssetCommand(widget) {
-  const assetId = widget.element.querySelector("[data-role='asset-id']").value.trim();
-  const action = widget.element.querySelector("[data-role='asset-action']").value;
-  const app = widget.element.querySelector("[data-role='asset-app']").value.trim();
-  const payload = action === "launch" ? { app } : {};
-  setRoleText(widget, "asset-output", "Enviando.");
-  try {
-    const data = await getJson(`/assets/${encodeURIComponent(assetId)}/command`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, payload })
-    });
-    setRoleText(widget, "asset-output", JSON.stringify(data, null, 2));
-    await loadAssets();
-  } catch (error) {
-    setRoleText(widget, "asset-output", error.message);
-  }
-}
-
-async function loadSelfStatus(widget) {
-  setRoleText(widget, "self-output", "Consultando estado propio.");
-  const data = await getJson("/tools", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ tool: "jarvis.self_status", arguments: {} })
-  });
-  setRoleText(widget, "self-output", JSON.stringify(data.result, null, 2));
-}
-
-async function restartSelf(widget) {
-  setRoleText(widget, "self-output", "Reiniciando JARVIS.");
-  const data = await getJson("/tools", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ tool: "jarvis.self_restart", arguments: { confirm: true } })
-  });
-  setRoleText(widget, "self-output", JSON.stringify(data.result, null, 2));
-}
-
-async function runTerminalCommand(event, widget) {
-  event.preventDefault();
-  const input = widget.element.querySelector("[data-role='terminal-command']");
-  const command = input.value.trim();
-  if (!command) return;
-  setRoleText(widget, "terminal-output", "Ejecutando en host.");
-  const data = await getJson("/tools", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ tool: "system.host_shell", arguments: { command, confirm: true, timeout: 60 } })
-  });
-  setRoleText(widget, "terminal-output", JSON.stringify(data.result, null, 2));
-}
-
-function mountLiveWidget(widget, frame) {
-  const runtime = widget.spec.runtime || {};
-  const bridge = runtimeBridgeScript(widget.id);
-  frame.srcdoc = `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    :root { color-scheme: dark; font-family: "Share Tech Mono", "JetBrains Mono", Consolas, monospace; }
-    * { box-sizing: border-box; }
-    html, body { width: 100%; min-height: 100%; margin: 0; background: transparent; color: #e8fcff; overflow: auto; }
-    body { padding: 2px; }
-    ${runtime.css || ""}
-  </style>
-</head>
-<body>
-  ${runtime.html || "<div>Widget vivo sin interfaz.</div>"}
-  <script>${bridge}<\/script>
-  <script>
-  try {
-    ${runtime.js || ""}
-  } catch (error) {
-    JARVIS.toast("Error runtime: " + error.message);
-  }
-  <\/script>
-</body>
-</html>`;
-}
-
-function runtimeBridgeScript(widgetId) {
-  return `
-window.JARVIS = (() => {
-  let seq = 0;
-  const pending = new Map();
-  window.addEventListener("message", (event) => {
-    const data = event.data || {};
-    if (!data.jarvisRuntimeResponse || data.widgetId !== ${JSON.stringify(widgetId)}) return;
-    const resolver = pending.get(data.requestId);
-    if (!resolver) return;
-    pending.delete(data.requestId);
-    if (data.ok) resolver.resolve(data.payload);
-    else resolver.reject(new Error(data.error || "JARVIS bridge error"));
-  });
-  function request(type, payload) {
-    const requestId = "r" + (++seq);
-    parent.postMessage({ jarvisRuntime: true, widgetId: ${JSON.stringify(widgetId)}, requestId, type, payload }, "*");
-    return new Promise((resolve, reject) => {
-      pending.set(requestId, { resolve, reject });
-      setTimeout(() => {
-        if (!pending.has(requestId)) return;
-        pending.delete(requestId);
-        reject(new Error("Tiempo agotado esperando a JARVIS."));
-      }, 60000);
-    });
-  }
-  return {
-    callTool: (tool, argumentsObject = {}) => request("tool", { tool, arguments: argumentsObject }),
-    chat: (message) => request("chat", { message }),
-    status: () => request("status", {}),
-    openUrl: (url) => request("openUrl", { url }),
-    toast: (text) => request("toast", { text })
-  };
-})();`;
-}
-
-async function handleRuntimeMessage(event) {
-  const data = event.data || {};
-  if (!data.jarvisRuntime) return;
-  const widget = state.widgets.find((item) => item.id === data.widgetId);
-  if (!widget) return;
-  try {
-    let payload = {};
-    if (data.type === "tool") {
-      payload = await getJson("/tools", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tool: data.payload?.tool, arguments: data.payload?.arguments || {} })
-      });
-    } else if (data.type === "chat") {
-      payload = { text: await chatText(data.payload?.message || "") };
-    } else if (data.type === "status") {
-      payload = await getJson("/status");
-    } else if (data.type === "openUrl") {
-      const url = String(data.payload?.url || "");
-      if (!/^https?:\/\//i.test(url)) throw new Error("URL bloqueada: usa http/https.");
-      window.open(url, "_blank", "noopener,noreferrer");
-      payload = { opened: true, url };
-    } else if (data.type === "toast") {
-      toast(String(data.payload?.text || ""));
-      payload = { ok: true };
-    } else {
-      throw new Error(`Operacion no soportada: ${data.type}`);
-    }
-    event.source?.postMessage({ jarvisRuntimeResponse: true, widgetId: data.widgetId, requestId: data.requestId, ok: true, payload }, "*");
-  } catch (error) {
-    event.source?.postMessage({ jarvisRuntimeResponse: true, widgetId: data.widgetId, requestId: data.requestId, ok: false, error: error.message }, "*");
-  }
-}
-
-async function chatText(message) {
-  const response = await fetch("/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message })
-  });
-  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-  return cleanAssistantText(await response.text());
-}
-
-async function runGeneratedAction(widget, actionId) {
-  const custom = widget.spec.custom || {};
-  const actions = Array.isArray(custom.actions) ? custom.actions : [];
-  const action = actions.find((item) => item.id === actionId) || { id: "show", label: "Mostrar", type: "show_value" };
-  const values = generatedValues(widget);
-  const output = widget.element.querySelector("[data-role='generated-output']");
-  if (output) output.textContent = "Ejecutando.";
-  try {
-    if (action.type === "open_url") {
-      const url = fillTemplate(action.urlTemplate || "https://www.google.com/search?q={query}", values);
-      if (!/^https?:\/\//i.test(url)) throw new Error("La accion open_url requiere una URL http/https.");
-      window.open(url, "_blank", "noopener,noreferrer");
-      if (output) output.textContent = `Abierto: ${url}`;
-      return;
-    }
-    if (action.type === "ask_jarvis") {
-      const message = fillTemplate(action.promptTemplate || widget.spec.query || "{request}", values);
-      if (output) output.textContent = "Enviado a JARVIS.";
-      const chat = state.widgets.find((item) => item.type === "chat") || addWidget("chat");
-      focusWidget(chat);
-      await sendChatFromWidget(chat, message);
-      return;
-    }
-    if (action.type === "tool_call") {
-      const data = await getJson("/tools", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tool: action.tool, arguments: fillObjectTemplates(action.arguments || {}, values) })
-      });
-      if (output) output.textContent = JSON.stringify(data.result || data, null, 2);
-      return;
-    }
-    if (output) output.textContent = JSON.stringify(values, null, 2);
-  } catch (error) {
-    if (output) output.textContent = `Fallo: ${error.message}`;
-  }
-}
-
-function generatedValues(widget) {
-  const values = {};
-  widget.element.querySelectorAll("[data-generated-field]").forEach((field) => {
-    values[field.dataset.generatedField] = field.value;
-  });
-  if (!("query" in values)) {
-    const first = Object.values(values).find((value) => String(value || "").trim());
-    if (first) values.query = first;
-  }
-  return values;
-}
-
-function fillTemplate(template, values) {
-  return String(template || "").replace(/\{([a-zA-Z0-9_]+)\}/g, (_, key) => encodeURIComponent(values[key] ?? ""));
-}
-
-function fillObjectTemplates(value, values) {
-  if (typeof value === "string") return fillTemplate(value, values);
-  if (Array.isArray(value)) return value.map((item) => fillObjectTemplates(item, values));
-  if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, fillObjectTemplates(item, values)]));
-  }
-  return value;
-}
-
-function toggleDictation(widget) {
+function togglePushToTalk() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) return appendMessage(widget, "assistant", "Dictado no disponible en este navegador.");
-  if (state.listening && state.recognition) {
-    state.continuousListening = false;
-    state.recognition.stop();
+  if (!SpeechRecognition) {
+    setVoiceStatus("error");
+    toast("Este navegador no soporta Web Speech API.");
     return;
   }
-  state.continuousListening = true;
-  state.activeVoiceWidget = widget;
+  if (state.voice.recognition) {
+    state.voice.recognition.stop();
+    return;
+  }
   const recognition = new SpeechRecognition();
   recognition.lang = "es-ES";
-  recognition.interimResults = false;
-  recognition.continuous = true;
-  recognition.onstart = () => {
-    state.listening = true;
-    widget.element.classList.add("recording");
-  };
-  recognition.onend = () => {
-    state.listening = false;
-    widget.element.classList.remove("recording");
-    if (state.continuousListening && state.activeVoiceWidget === widget) {
-      setTimeout(() => {
-        try {
-          recognition.start();
-        } catch {}
-      }, 350);
+  recognition.interimResults = true;
+  recognition.continuous = false;
+  state.voice.recognition = recognition;
+  setVoiceStatus("listening");
+  recognition.onresult = (event) => {
+    const text = Array.from(event.results).map((item) => item[0].transcript).join(" ");
+    $("commandInput").value = text;
+    if (event.results[event.results.length - 1].isFinal) {
+      setVoiceStatus("thinking");
+      executeCommand(text);
     }
   };
-  recognition.onresult = (event) => sendChatFromWidget(widget, event.results[0][0].transcript);
-  state.recognition = recognition;
+  recognition.onerror = (event) => {
+    setVoiceStatus("error");
+    toast(`Micrófono: ${event.error}`);
+  };
+  recognition.onend = () => {
+    state.voice.recognition = null;
+    if (state.voice.status !== "thinking") setVoiceStatus("idle");
+  };
   recognition.start();
 }
 
-function speak(widget, text, force) {
-  const cleanText = cleanAssistantText(text);
-  const enabled = widget?.element?.querySelector("[data-role='voice']")?.checked;
-  if (!cleanText || !("speechSynthesis" in window)) return;
-  if (!force && !enabled) return;
-  stopVoice();
-  const utterance = new SpeechSynthesisUtterance(cleanText);
-  utterance.lang = /[áéíóúñ¿¡]/i.test(cleanText) ? "es-ES" : "en-GB";
-  utterance.rate = 0.82;
-  utterance.pitch = 0.45;
-  const voices = state.voices.length ? state.voices : window.speechSynthesis.getVoices();
-  const preferredNames = ["pablo", "jorge", "alvaro", "álvaro", "diego", "microsoft pablo", "microsoft alvaro", "google uk english male", "microsoft george", "microsoft david", "daniel", "thomas", "alex"];
-  const preferred = voices.find((voice) => preferredNames.some((name) => voice.name.toLowerCase().includes(name)))
-    || voices.find((voice) => voice.lang === utterance.lang)
-    || voices.find((voice) => voice.lang.startsWith(utterance.lang.slice(0, 2)));
-  if (preferred) utterance.voice = preferred;
-  window.speechSynthesis.speak(utterance);
-}
-
 function stopVoice() {
-  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
-  state.continuousListening = false;
-  if (state.recognition && state.listening) state.recognition.stop();
+  if (state.voice.recognition) state.voice.recognition.stop();
+  setVoiceStatus("idle");
 }
 
-function loadVoices() {
-  if ("speechSynthesis" in window) state.voices = window.speechSynthesis.getVoices();
+function setVoiceStatus(status) {
+  state.voice.status = status;
+  $("micButton").dataset.status = status;
+  setCoreStatus(status === "listening" ? "listening" : status);
 }
 
-function scheduleWorldTransform() {
-  if (state.raf) return;
-  state.raf = requestAnimationFrame(() => {
-    state.raf = 0;
-    $("canvasWorld").style.transform = `translate3d(${state.view.x}px, ${state.view.y}px, 0) scale(${state.view.scale})`;
-  });
+function setCoreStatus(status) {
+  $("appShell").dataset.core = status;
+  $("coreState").textContent = status.toUpperCase();
 }
 
-function animateView() {
-  if (state.viewRaf) return;
-  const tick = () => {
-    state.view.x += (state.targetView.x - state.view.x) * 0.28;
-    state.view.y += (state.targetView.y - state.view.y) * 0.28;
-    state.view.scale += (state.targetView.scale - state.view.scale) * 0.22;
-    scheduleWorldTransform();
-    const settled = Math.abs(state.targetView.x - state.view.x) < 0.2
-      && Math.abs(state.targetView.y - state.view.y) < 0.2
-      && Math.abs(state.targetView.scale - state.view.scale) < 0.002;
-    if (settled) {
-      state.view = { ...state.targetView };
-      scheduleWorldTransform();
-      state.viewRaf = 0;
-      return;
-    }
-    state.viewRaf = requestAnimationFrame(tick);
-  };
-  state.viewRaf = requestAnimationFrame(tick);
-}
-
-function zoomAt(clientX, clientY, factor) {
-  const before = screenToWorld(clientX, clientY);
-  state.targetView.scale = clamp(state.targetView.scale * factor, 0.42, 1.7);
-  const rect = $("canvasViewport").getBoundingClientRect();
-  state.targetView.x = clientX - rect.left - before.x * state.targetView.scale;
-  state.targetView.y = clientY - rect.top - before.y * state.targetView.scale;
-  animateView();
-}
-
-function trackTouchPointer(event) {
-  if (!state.pinch) state.pinch = { points: new Map(), startDistance: 0, startScale: state.targetView.scale };
-  state.pinch.points.set(event.pointerId, { x: event.clientX, y: event.clientY });
-  $("canvasViewport").setPointerCapture(event.pointerId);
-  if (state.pinch.points.size === 1) {
-    state.pan = { x: event.clientX, y: event.clientY, ox: state.targetView.x, oy: state.targetView.y };
+function renderInspector(panel, data = null) {
+  $("inspector").classList.add("open");
+  const body = $("inspectorBody");
+  $("inspectorEyebrow").textContent = panel;
+  if (panel === "confirm") {
+    $("inspectorTitle").textContent = "Confirmación requerida";
+    body.innerHTML = `<p>${escapeHtml(data.message)}</p><button class="primary-button" id="confirmClear">Confirmar limpiar canvas</button>`;
+    $("confirmClear").addEventListener("click", () => executeCommand("confirmar limpiar canvas"));
+    return;
   }
-  if (state.pinch.points.size === 2) {
-    const points = [...state.pinch.points.values()];
-    state.pinch.startDistance = distance(points[0], points[1]);
-    state.pinch.startScale = state.targetView.scale;
-    state.pan = null;
+  if (panel === "widget") {
+    $("inspectorTitle").textContent = data.title;
+    body.innerHTML = `<pre class="output">${escapeHtml(JSON.stringify(data, null, 2))}</pre>`;
+    return;
+  }
+  if (panel === "config") {
+    $("inspectorTitle").textContent = "Configuración";
+    body.innerHTML = `
+      <label class="toggle"><input id="readonlyToggle" type="checkbox" ${state.readonly ? "checked" : ""}> Modo solo lectura</label>
+      <label class="toggle"><input id="gridToggle" type="checkbox" ${state.layout.canvas.grid ? "checked" : ""}> Mostrar grid</label>
+      <label>Intensidad visual <input id="visualRange" type="range" min="0.2" max="1" step="0.05" value="${state.visualIntensity}"></label>
+      <button class="text-button" id="exportLayout">Exportar layout</button>
+      <button class="text-button" id="importLayout">Importar layout</button>
+      <button class="danger-button" id="clearCanvas">Limpiar canvas</button>
+      <textarea id="layoutBuffer" placeholder="JSON de layout"></textarea>`;
+    $("readonlyToggle").addEventListener("change", (e) => state.readonly = e.target.checked);
+    $("gridToggle").addEventListener("change", (e) => $("appShell").classList.toggle("no-grid", !e.target.checked));
+    $("visualRange").addEventListener("input", (e) => document.documentElement.style.setProperty("--visual", e.target.value));
+    $("exportLayout").addEventListener("click", () => $("layoutBuffer").value = JSON.stringify(state.layout, null, 2));
+    $("importLayout").addEventListener("click", importLayout);
+    $("clearCanvas").addEventListener("click", () => renderInspector("confirm", { message: "¿Limpiar todos los widgets del canvas?" }));
+    return;
+  }
+  if (panel === "memory" || panel === "tools") {
+    $("inspectorTitle").textContent = panel === "memory" ? "Audit log" : "Herramientas";
+    body.innerHTML = panel === "memory" ? auditHtml() : toolsHtml();
+    return;
+  }
+  $("inspectorTitle").textContent = "Chat y comandos";
+  body.innerHTML = `
+    <div class="suggestion-list">
+      ${[
+        "crea un monitor de red",
+        "crea un widget de logs",
+        "crea un dashboard con CPU RAM y disco",
+        "crea un preview de URL",
+        "crea un checklist de tareas",
+        "mueve el widget arriba a la derecha",
+        "hazlo más grande",
+        "actualízalo cada 10 segundos"
+      ].map((item) => `<button data-suggestion="${escapeHtml(item)}">${escapeHtml(item)}</button>`).join("")}
+    </div>`;
+  body.querySelectorAll("[data-suggestion]").forEach((button) => button.addEventListener("click", () => executeCommand(button.dataset.suggestion)));
+}
+
+function renderHints() {
+  $("commandHints").innerHTML = state.history.map((item) => `<button type="button" data-history="${escapeHtml(item)}">${escapeHtml(item)}</button>`).join("");
+  $("commandHints").querySelectorAll("[data-history]").forEach((button) => button.addEventListener("click", () => $("commandInput").value = button.dataset.history));
+}
+
+async function importLayout() {
+  try {
+    const layout = JSON.parse($("layoutBuffer").value);
+    const data = await getJson("/widgets/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ layout })
+    });
+    state.layout = data.layout;
+    renderWidgets();
+    toast("Layout importado.");
+  } catch (error) {
+    toast(`Importación inválida: ${error.message}`);
   }
 }
 
-function updatePinch() {
-  const points = [...state.pinch.points.values()];
-  if (points.length < 2) return;
-  const current = distance(points[0], points[1]);
-  const center = { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 };
-  zoomAt(center.x, center.y, current / Math.max(state.pinch.startDistance, 1));
-  state.pinch.startDistance = current;
+function statusCard(widget, data) {
+  const status = data?.status || data?.vitals?.status || widget.status;
+  return `<div class="big-status"><strong>${escapeHtml(status)}</strong><span>${escapeHtml(widget.description || "Estado operativo")}</span></div>`;
 }
 
-function distance(a, b) {
-  return Math.hypot(a.x - b.x, a.y - b.y);
+function metricCard(widget, data) {
+  const key = widget.config.key || "value";
+  return `<div class="metric-solo"><span>${escapeHtml(widget.config.label || key)}</span><strong>${escapeHtml(data?.[key] ?? "--")}${escapeHtml(widget.config.suffix || "")}</strong></div>`;
 }
 
-function scheduleWidgetTransform(widget) {
-  if (widget.framePending) return;
-  widget.framePending = true;
-  requestAnimationFrame(() => {
-    widget.framePending = false;
-    widget.element.style.width = `${widget.w}px`;
-    widget.element.style.height = `${widget.h}px`;
-    widget.element.style.transform = `translate3d(${widget.x}px, ${widget.y}px, 0)`;
-  });
+function metricGrid(widget, data) {
+  const metrics = widget.config.metrics || [];
+  return `<div class="widget-metrics">${metrics.map((metric) => `<article><span>${escapeHtml(metric.label)}</span><strong>${escapeHtml(data?.[metric.key] ?? "--")}${escapeHtml(metric.suffix || "")}</strong></article>`).join("") || emptyState("Sin métricas configuradas.")}</div>`;
 }
 
-function screenToWorld(x, y) {
-  const rect = $("canvasViewport").getBoundingClientRect();
+function chartWidget(widget, data, kind) {
+  const values = widget.config.values || [24, 38, 31, 52, 44, 68, 59];
+  const bars = values.map((value) => `<span style="height:${Math.max(8, Number(value))}%"></span>`).join("");
+  return `<div class="chart ${kind}">${bars}</div><small class="muted">Datos ${data?.mock ? "mock" : "preparados"}</small>`;
+}
+
+function tableWidget(widget, data) {
+  const columns = widget.config.columns || ["Nombre", "Estado"];
+  const rows = widget.config.rows || data?.rows || [];
+  return `<table><thead><tr>${columns.map((item) => `<th>${escapeHtml(item)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+}
+
+function logViewer(widget, data) {
+  const logs = Array.isArray(data) ? data : state.audit;
+  return `<div class="log-lines">${logs.slice(0, widget.config.limit || 20).map((item) => `<p><span>${escapeHtml(item.severity || "info")}</span>${escapeHtml(item.message || item.summary || JSON.stringify(item))}</p>`).join("") || emptyState("Sin logs.")}</div>`;
+}
+
+function markdownWidget(widget) {
+  return `<div class="markdown">${sanitizeMarkdown(widget.config.markdown || "### JARVIS\nWidget markdown seguro.")}</div>`;
+}
+
+function checklistWidget(widget) {
+  const items = widget.config.items || [];
+  return `<div class="checklist">${items.map((item) => `<label><input data-check-id="${escapeHtml(item.id)}" type="checkbox" ${item.done ? "checked" : ""}> ${escapeHtml(item.text)}</label>`).join("")}</div>`;
+}
+
+function formWidget(widget) {
+  const fields = widget.config.fields || [];
+  return `<div class="form-widget">${fields.map((field) => `<label>${escapeHtml(field.label)}<input type="${field.type === "url" ? "url" : "text"}" placeholder="${escapeHtml(field.label)}"></label>`).join("")}<button data-form-submit>Guardar</button></div>`;
+}
+
+function imagePreview(widget) {
+  const url = safeUrl(widget.config.url || "") ? widget.config.url : "";
+  return url ? `<img class="preview-image" src="${escapeHtml(url)}" alt="${escapeHtml(widget.title)}">` : emptyState("Configura una URL http/https de imagen.");
+}
+
+function webPreview(widget) {
+  const url = safeUrl(widget.config.url || "") ? widget.config.url : "about:blank";
+  return `<iframe class="preview-frame" sandbox="allow-forms allow-scripts" src="${escapeHtml(url)}" title="${escapeHtml(widget.title)}"></iframe>`;
+}
+
+function commandPanel(widget) {
+  return `<div class="command-panel">${widget.actions.map((action) => `<button class="${action.dangerLevel !== "low" ? "danger-button" : "text-button"}" data-run-action="${escapeHtml(action.id)}">${escapeHtml(action.label)}</button>`).join("") || emptyState("Sin acciones.")}</div>`;
+}
+
+function serviceMonitor(widget, data) {
+  const services = data?.services || [];
+  return `<div class="service-list">${services.map((svc) => `<div><strong>${escapeHtml(svc.name)}</strong><span>${escapeHtml(svc.status)}${svc.mock ? " · mock" : ""}</span></div>`).join("") || emptyState("Sin servicios.")}</div>`;
+}
+
+function calendarPanel(widget, data) {
+  const events = data?.events || [{ title: "Mock calendar", when: "Preparado" }];
+  return `<div class="service-list">${events.map((event) => `<div><strong>${escapeHtml(event.title)}</strong><span>${escapeHtml(event.when)}</span></div>`).join("")}</div>`;
+}
+
+function filePanel(widget) {
+  return `<div class="service-list"><div><strong>/data</strong><span>Conector preparado</span></div><div><strong>workspace</strong><span>Mock</span></div></div>`;
+}
+
+function chatPanel(widget) {
+  return `<div class="chat-mini"><p>Panel conectado al command router.</p><button class="text-button" data-run-command="estado">Consultar estado</button></div>`;
+}
+
+function automationPanel(widget) {
+  return `<div class="service-list"><div><strong>n8n</strong><span>Preparado para conexión</span></div><div><strong>Telegram</strong><span>Preparado</span></div></div>`;
+}
+
+function iframeSandbox(widget) {
+  const url = safeUrl(widget.config.url || "") ? widget.config.url : "about:blank";
+  return `<iframe class="preview-frame" sandbox="allow-scripts allow-forms" src="${escapeHtml(url)}" title="${escapeHtml(widget.title)}"></iframe>`;
+}
+
+function updateChecklist(widget, id, checked) {
+  const items = (widget.config.items || []).map((item) => item.id === id ? { ...item, done: checked } : item);
+  saveAndReload(widget.id, { config: { ...widget.config, items } });
+}
+
+function mockDataFor(widget) {
+  if (widget.type === "service_monitor") return { services: [{ name: "JARVIS", status: "online" }, { name: "Hermes", status: "mock-ready" }] };
+  return { mock: true, status: "mock-ready", value: 42, cpu: 38, ram: 51, disk: 22, latency: 24, download: 240, upload: 80 };
+}
+
+function auditHtml() {
+  return `<div class="log-lines">${state.audit.map((item) => `<p><span>${escapeHtml(item.type)}</span>${escapeHtml(item.message)}</p>`).join("") || emptyState("Sin audit log.")}</div>`;
+}
+
+function toolsHtml() {
+  return `<div class="service-list">${["get_system_status", "get_network_status", "get_recent_logs", "get_service_status", "sync_workspace"].map((item) => `<div><strong>${item}</strong><span>Disponible para widgets</span></div>`).join("")}</div>`;
+}
+
+function demoCommand(kind) {
   return {
-    x: (x - rect.left - state.view.x) / state.view.scale,
-    y: (y - rect.top - state.view.y) / state.view.scale
-  };
+    system: "crea un dashboard con CPU RAM y disco",
+    logs: "crea un widget de logs",
+    assets: "crea una tabla de assets",
+    automation: "crea un panel de automatizaciones"
+  }[kind] || "crea un widget de métricas";
 }
 
-function worldToScreen(x, y) {
-  const rect = $("canvasViewport").getBoundingClientRect();
-  return {
-    x: rect.left + state.view.x + x * state.view.scale,
-    y: rect.top + state.view.y + y * state.view.scale
-  };
+function getWidget(id) {
+  return state.layout.widgets.find((item) => item.id === id);
 }
 
-function inferWidgetType(prompt) {
-  const text = prompt.toLowerCase();
-  if (/(control|reinicia|actualiza|self|propio|ti mismo)/.test(text)) return "self";
-  if (/(comando|terminal|shell|sistema|host)/.test(text)) return "terminal";
-  if (/(chat|habla|pregunta|asistente|jarvis)/.test(text)) return "chat";
-  if (/(google|oauth|openai|codex|gemini|api|config)/.test(text)) return "config";
-  if (/(log|incidente|memoria|evento)/.test(text)) return "logs";
-  if (/(asset|remoto|pc|almacenamiento|storage|disco remoto)/.test(text)) return "assets";
-  if (/(cpu|ram|docker|red|network|trafico|trÃ¡fico|metrica|mÃ©trica)/.test(text)) return "metrics";
-  return "custom";
+function snap(value) {
+  return state.layout.canvas.grid ? Math.round(value / 12) * 12 : Math.round(value);
 }
 
-function titleFromPrompt(prompt, type) {
-  if (type !== "custom") return widgetDefaults[type].title;
-  const clean = prompt.replace(/[^\w\sÃ¡Ã©Ã­Ã³ÃºÃ±]/gi, "").trim();
-  return clean ? clean.slice(0, 34) : "Dynamic Widget";
+function safeUrl(value) {
+  try {
+    const url = new URL(value);
+    return ["http:", "https:"].includes(url.protocol);
+  } catch {
+    return false;
+  }
 }
 
-function renderContainers(data) {
-  if (!data.available) return row("Docker no disponible", data.error || "Socket no montado", "warning");
-  return data.containers.slice(0, 8).map((item) => row(item.name, `${item.status} - ${item.image}`, item.status === "running" ? "" : "warning")).join("") || row("Sin contenedores", "Registro vacio", "warning");
+function sanitizeMarkdown(value) {
+  return escapeHtml(value)
+    .replace(/^### (.*)$/gm, "<h3>$1</h3>")
+    .replace(/^## (.*)$/gm, "<h2>$1</h2>")
+    .replace(/^# (.*)$/gm, "<h2>$1</h2>")
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\n/g, "<br>");
 }
 
-function setText(widget, role, text) {
-  const node = widget.element.querySelector(`[data-role='${role}']`);
-  if (node) node.textContent = text;
+function emptyState(text) {
+  return `<div class="empty-state">${escapeHtml(text)}</div>`;
 }
 
-function setRoleText(widget, role, text) {
-  setText(widget, role, text);
+function errorState(text) {
+  return `<div class="error-state">${escapeHtml(text)}</div>`;
 }
 
 async function getJson(url, options) {
@@ -1105,31 +697,16 @@ async function getJson(url, options) {
   return response.json();
 }
 
-function cleanAssistantText(text) {
-  return String(text || "").split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !isTerminalNoise(line)).join("\n").trim();
-}
-
-function isTerminalNoise(line) {
-  const lower = line.toLowerCase();
-  if ([">", "$", "â¯"].includes(line)) return true;
-  if (/^[-_|+=~: .[\]()0-9]{12,}$/.test(line)) return true;
-  return ["msg=interrupt", "/queue", "/bg", "/steer", "ctrl+c", "tokens", "private telemetry", "current local telemetry", "codex exec"].some((fragment) => lower.includes(fragment));
-}
-
 function percent(value) {
   return typeof value === "number" ? `${value.toFixed(0)}%` : "--";
 }
 
-function row(title, detail, tone) {
-  return `<div class="row ${tone || ""}"><div><strong>${escapeHtml(title)}</strong><br><small>${escapeHtml(detail)}</small></div><span></span></div>`;
-}
-
 function escapeHtml(value) {
-  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-}
-
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
 }
 
 function toast(message) {
@@ -1137,4 +714,3 @@ function toast(message) {
   $("toast").classList.add("visible");
   setTimeout(() => $("toast").classList.remove("visible"), 2600);
 }
-

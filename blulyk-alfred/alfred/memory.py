@@ -34,6 +34,15 @@ class MemoryStore:
                     payload TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS audit_log (
+                    id TEXT PRIMARY KEY,
+                    timestamp TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    metadata TEXT NOT NULL,
+                    severity TEXT NOT NULL
+                );
                 """
             )
             await db.commit()
@@ -68,6 +77,36 @@ class MemoryStore:
         if row is None:
             return None
         return json.loads(row[0])
+
+    async def record_audit(
+        self,
+        event_id: str,
+        event_type: str,
+        source: str,
+        message: str,
+        metadata: dict[str, Any] | None = None,
+        severity: str = "info",
+    ) -> None:
+        await self._execute(
+            """
+            INSERT INTO audit_log(id, timestamp, type, source, message, metadata, severity)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (event_id, self._now(), event_type, source, message, json.dumps(metadata or {}), severity),
+        )
+
+    async def recent_audit(self, limit: int = 100) -> list[dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            rows = await db.execute_fetchall(
+                "SELECT * FROM audit_log ORDER BY timestamp DESC LIMIT ?", (limit,)
+            )
+        result = []
+        for row in rows:
+            item = dict(row)
+            item["metadata"] = json.loads(item["metadata"])
+            result.append(item)
+        return result
 
     async def recent_incidents(self, limit: int = 10) -> list[dict[str, Any]]:
         async with aiosqlite.connect(self.db_path) as db:

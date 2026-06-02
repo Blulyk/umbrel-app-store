@@ -4,8 +4,7 @@ from alfred.asset_registry import AssetRegistry
 from alfred.config import Settings
 from alfred.docker_control import docker_summary, restart_container
 from alfred.memory import MemoryStore
-from alfred.system_control import host_auth_journal, host_shell
-from alfred.threats import scan_auth_log, scan_auth_text
+from alfred.threats import scan_auth_log
 from alfred.vitals import vitals_payload
 
 
@@ -21,17 +20,17 @@ class ToolRouter:
             {"name": "threats.scan", "arguments": {}},
             {"name": "docker.summary", "arguments": {}},
             {"name": "docker.restart", "arguments": {"name": "container-name"}},
-            {"name": "jarvis.self_status", "arguments": {}},
-            {"name": "jarvis.self_restart", "arguments": {"confirm": True}},
-            {
-                "name": "system.host_shell",
-                "arguments": {
-                    "command": "id && hostnamectl",
-                    "confirm": True,
-                    "timeout": 45,
-                },
-            },
             {"name": "memory.incidents", "arguments": {"limit": 10}},
+            {"name": "get_system_status", "arguments": {}},
+            {"name": "get_network_status", "arguments": {}},
+            {"name": "get_cpu_ram_status", "arguments": {}},
+            {"name": "get_storage_status", "arguments": {}},
+            {"name": "get_recent_logs", "arguments": {"limit": 20}},
+            {"name": "get_service_status", "arguments": {}},
+            {"name": "restart_service", "arguments": {"name": "service-name", "confirm": True}},
+            {"name": "sync_workspace", "arguments": {}},
+            {"name": "get_calendar_preview", "arguments": {}},
+            {"name": "get_assets_list", "arguments": {}},
             {
                 "name": "asset.command",
                 "arguments": {
@@ -47,58 +46,73 @@ class ToolRouter:
         if name == "vitals.report":
             return {"ok": True, "result": vitals_payload(self.settings)}
         if name == "threats.scan":
-            result = scan_auth_log(self.settings.auth_log_path)
-            if result.get("status") == "Unavailable" and self.settings.system_control:
-                journal = host_auth_journal(self.settings)
-                if journal.get("ok"):
-                    result = scan_auth_text(str(journal.get("output", "")).splitlines())
-                    result["source"] = "host-journal"
-                else:
-                    result["journal_fallback_error"] = journal.get("error")
-            return {"ok": True, "result": result}
+            return {"ok": True, "result": scan_auth_log(self.settings.auth_log_path)}
         if name == "docker.summary":
             return {"ok": True, "result": docker_summary(self.settings)}
         if name == "docker.restart":
-            result = restart_container(self.settings, str(args.get("name", "")))
-            await self.memory.record_incident("info", "docker-control", f"docker.restart {args.get('name', '')}", result)
-            return {"ok": True, "result": result}
-        if name == "jarvis.self_status":
-            return {
-                "ok": True,
-                "result": {
-                    "app": "blulyk-alfred",
-                    "container": "blulyk-alfred_web_1",
-                    "docker": docker_summary(self.settings),
-                    "control": {
-                        "docker_control": self.settings.docker_control,
-                        "system_control": self.settings.system_control,
-                        "public_port": getattr(self.settings, "public_port", 8099),
-                    },
-                },
-            }
-        if name == "jarvis.self_restart":
-            if not bool(args.get("confirm", False)):
-                return {"ok": True, "result": {"ok": False, "error": "Self restart requires confirm=true."}}
-            result = restart_container(self.settings, "blulyk-alfred_web_1")
-            await self.memory.record_incident("warning", "self-control", "jarvis.self_restart", result)
-            return {"ok": True, "result": result}
-        if name == "system.host_shell":
-            result = host_shell(
-                self.settings,
-                str(args.get("command", "")),
-                bool(args.get("confirm", False)),
-                int(args.get("timeout", 45)),
-            )
-            await self.memory.record_incident(
-                "warning" if result.get("ok") else "info",
-                "system-control",
-                f"system.host_shell {str(args.get('command', ''))[:120]}",
-                result,
-            )
-            return {"ok": True, "result": result}
+            return {"ok": True, "result": restart_container(self.settings, str(args.get("name", "")))}
         if name == "memory.incidents":
             limit = int(args.get("limit", 10))
             return {"ok": True, "result": await self.memory.recent_incidents(limit)}
+        if name == "get_system_status":
+            vitals = vitals_payload(self.settings)
+            docker = docker_summary(self.settings)
+            return {"ok": True, "result": {"mock": False, "vitals": vitals, "docker": docker}}
+        if name == "get_cpu_ram_status":
+            vitals = vitals_payload(self.settings)
+            return {
+                "ok": True,
+                "result": {
+                    "mock": False,
+                    "cpu": round(float(vitals.get("cpu_percent") or 0), 1),
+                    "ram": round(float(vitals.get("ram_percent") or 0), 1),
+                    "disk": round(float(vitals.get("disk_percent") or 0), 1),
+                    "status": vitals.get("status", "Unknown"),
+                },
+            }
+        if name == "get_storage_status":
+            vitals = vitals_payload(self.settings)
+            return {"ok": True, "result": {"mock": False, "disk": vitals.get("disk_percent"), "status": vitals.get("status")}}
+        if name == "get_network_status":
+            return {
+                "ok": True,
+                "result": {
+                    "mock": True,
+                    "latency": 22,
+                    "download": 312,
+                    "upload": 94,
+                    "status": "mock-ready",
+                },
+            }
+        if name == "get_recent_logs":
+            limit = int(args.get("limit", 20))
+            return {"ok": True, "result": await self.memory.recent_audit(limit)}
+        if name == "get_service_status":
+            docker = docker_summary(self.settings)
+            containers = docker.get("containers", []) if docker.get("available") else []
+            names = ["JARVIS", "Hermes", "Moodle", "NotebookLM", "n8n", "servidor local"]
+            services = []
+            for service in names:
+                match = next((item for item in containers if service.lower() in str(item.get("name", "")).lower()), None)
+                services.append(
+                    {
+                        "name": service,
+                        "status": match.get("status") if match else "mock-ready",
+                        "detail": match.get("image") if match else "Prepared connector",
+                        "mock": match is None,
+                    }
+                )
+            return {"ok": True, "result": {"services": services}}
+        if name == "restart_service":
+            if not bool(args.get("confirm")):
+                return {"ok": False, "error": "restart_service requires confirm=true."}
+            return {"ok": True, "result": {"mock": True, "message": f"Restart prepared for {args.get('name', 'service')}."}}
+        if name == "sync_workspace":
+            return {"ok": True, "result": {"mock": True, "message": "Workspace sync hook prepared."}}
+        if name == "get_calendar_preview":
+            return {"ok": True, "result": {"mock": True, "events": [{"title": "Revision JARVIS", "when": "Hoy"}, {"title": "Automatizaciones", "when": "Manana"}]}}
+        if name == "get_assets_list":
+            return {"ok": True, "result": await self.assets.list_assets()}
         if name == "asset.command":
             result = await self.assets.send_command(
                 str(args["asset_id"]),

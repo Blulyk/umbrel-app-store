@@ -20,10 +20,6 @@ def scan_auth_log(path: str, max_lines: int = 3000) -> dict[str, object]:
     except OSError as exc:
         return {"status": "Unavailable", "anomalies": [], "summary": str(exc)}
 
-    return scan_auth_text(lines)
-
-
-def scan_auth_text(lines: list[str]) -> dict[str, object]:
     hits: Counter[str] = Counter()
     for line in lines:
         for pattern in FAILED_PATTERNS:

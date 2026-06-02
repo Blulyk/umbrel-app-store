@@ -3,7 +3,7 @@ id: blulyk-alfred
 name: JARVIS
 tagline: Local JARVIS console with Codex and Gemini fallback
 category: ai
-version: "1.7.3"
+version: "1.7.4"
 port: 8099
 path: ""
 icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-alfred/icon.svg
@@ -31,8 +31,9 @@ repo: https://github.com/Blulyk/umbrel-app-store
 support: https://github.com/Blulyk/umbrel-app-store/issues
 gallery: []
 releaseNotes: >-
-  Adds live self-generated widgets: JARVIS can now create HTML/CSS/JS widgets
-  at runtime, persist them, and connect them to chat and local tools through a
-  sandboxed bridge without waiting for app updates.
+  Replaces the old static console with the ARC Canvas widget dashboard. JARVIS
+  can now create, move, resize, duplicate, close, persist, import, and export
+  safe declarative widgets from natural language commands, with audit logging
+  and local tool data sources.
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store

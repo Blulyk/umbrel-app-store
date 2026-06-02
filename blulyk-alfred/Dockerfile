@@ -18,6 +18,7 @@ COPY alfred ./alfred
 COPY asset_bridge.py ./asset_bridge.py
 COPY personality.md ./personality.md
 COPY personality ./personality
+COPY docs ./docs
 
 EXPOSE 8080
 
