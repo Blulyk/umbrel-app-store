@@ -11,11 +11,23 @@ def replace_once(path: str, needle: str, replacement: str) -> None:
     target.write_text(text.replace(needle, replacement, 1), encoding="utf-8")
 
 
-replace_once(
-    "src/auth_helpers.py",
-    "from typing import Optional\nfrom fastapi import Request, HTTPException\n",
-    "from typing import Optional\nimport os\nfrom fastapi import Request, HTTPException\n",
-)
+def replace_if_found(path: str, needle: str, replacement: str) -> None:
+    target = Path(path)
+    text = target.read_text(encoding="utf-8")
+    if replacement in text or needle not in text:
+        return
+    target.write_text(text.replace(needle, replacement, 1), encoding="utf-8")
+
+
+target = Path("src/auth_helpers.py")
+text = target.read_text(encoding="utf-8")
+if "import os\n" not in text:
+    text = text.replace(
+        "from typing import Optional\nfrom fastapi import Request, HTTPException\n",
+        "from typing import Optional\nimport os\nfrom fastapi import Request, HTTPException\n",
+        1,
+    )
+    target.write_text(text, encoding="utf-8")
 
 replace_once(
     "src/auth_helpers.py",
@@ -42,7 +54,7 @@ replace_once(
 """,
 )
 
-replace_once(
+replace_if_found(
     "src/auth_helpers.py",
     """    u = get_current_user(request)
     if u:
@@ -66,6 +78,24 @@ replace_once(
             return ""
     if auth_mgr is not None and getattr(auth_mgr, "is_configured", False):
         raise HTTPException(401, "Not authenticated")
+""",
+)
+
+replace_if_found(
+    "src/auth_helpers.py",
+    """    if _auth_disabled():
+        return ""
+""",
+    """    if _auth_disabled():
+        auth_mgr = getattr(request.app.state, "auth_manager", None)
+        try:
+            users = getattr(auth_mgr, "users", {}) if auth_mgr is not None else {}
+            for username, data in users.items():
+                if data.get("is_admin") is True:
+                    return username
+            return next(iter(users), "")
+        except Exception:
+            return ""
 """,
 )
 
