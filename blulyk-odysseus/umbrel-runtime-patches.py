@@ -160,13 +160,13 @@ replace_once(
 """,
 )
 
-replace_once(
+replace_if_found(
     "routes/document_routes.py",
     '            body_text = _process_pdf(pdf_path).lstrip("\\n[PDF content]:").strip()',
     '            body_text = _process_pdf(pdf_path).removeprefix("\\n\\n[PDF content]:").strip()',
 )
 
-replace_once(
+replace_if_found(
     "routes/document_routes.py",
     '                body_text = _process_pdf(pdf_path).lstrip("\\n[PDF content]:").strip()',
     '                body_text = _process_pdf(pdf_path).removeprefix("\\n\\n[PDF content]:").strip()',
@@ -184,7 +184,7 @@ replace_once(
 """,
 )
 
-replace_once(
+replace_if_found(
     "static/js/documentLibrary.js",
     """        body: JSON.stringify({
           session_id: sessionId,
@@ -352,7 +352,7 @@ replace_once(
 """,
 )
 
-replace_once(
+replace_if_found(
     "static/js/documentLibrary.js",
     """        if (doc.session_id) items.push({ label: 'Open', action: () => libraryOpenInSession(doc) });
         items.push({ label: 'Clone', action: () => libraryImportDocument(doc) });
@@ -362,7 +362,7 @@ replace_once(
 """,
 )
 
-replace_once(
+replace_if_found(
     "static/js/documentLibrary.js",
     """    if (doc.session_id) {
       openItem.addEventListener('click', (e) => { e.stopPropagation(); dropdown.style.display = 'none'; libraryOpenInSession(doc); });
@@ -377,7 +377,22 @@ replace_once(
 """,
 )
 
-replace_once(
+replace_if_found(
+    "static/js/documentLibrary.js",
+    """    if (doc.session_id) {
+      openItem.addEventListener('click', (e) => { e.stopPropagation(); hideCardDropdown(); libraryOpenInSession(doc); });
+    } else {
+      openItem.disabled = true;
+      openItem.style.opacity = '0.35';
+      openItem.title = 'Not linked to a session';
+    }
+""",
+    """    openItem.title = doc.session_id ? 'Open in original session' : 'Open in current workspace';
+    openItem.addEventListener('click', (e) => { e.stopPropagation(); hideCardDropdown(); libraryOpenDocument(doc); });
+""",
+)
+
+replace_if_found(
     "static/js/documentLibrary.js",
     """    if (doc.session_id) {
       openBtn.title = 'Open in original session';
@@ -394,7 +409,7 @@ replace_once(
 """,
 )
 
-replace_once(
+replace_if_found(
     "static/js/documentLibrary.js",
     """        const files = fileInput.files;
         fileInput.value = '';
@@ -508,13 +523,13 @@ async function _deleteTask(id) {
 """,
 )
 
-replace_once(
+replace_if_found(
     "src/llm_core.py",
     "import httpx\nimport asyncio\n",
     "import httpx\nimport asyncio\nimport os\n",
 )
 
-replace_once(
+replace_if_found(
     "src/llm_core.py",
     """class LLMConfig:
     """ + '"""' + """Configuration constants for LLM operations.""" + '"""' + """
@@ -553,16 +568,14 @@ replace_once(
 """,
 )
 
-replace_once(
+replace_if_found(
     "src/llm_core.py",
-    """    except Exception:
-        return "provider"
+    """    return host or "provider"
 
 
 def _format_upstream_error(status: int, body: bytes | str, url: str) -> str:
 """,
-    """    except Exception:
-        return "provider"
+    """    return host or "provider"
 
 
 def _effective_llm_timeout(url: str, timeout: int | float | None) -> int:
@@ -596,13 +609,13 @@ replace_once(
 """,
 )
 
-replace_once(
+replace_if_found(
     "src/settings.py",
     "import logging\nfrom typing import Any\n",
     "import logging\nimport os\nfrom typing import Any\n",
 )
 
-replace_once(
+replace_if_found(
     "src/settings.py",
     '''    "agent_max_tool_calls": 0,
     "agent_input_token_budget": 6000,
