@@ -670,6 +670,7 @@ def _coerce_declarative_manifest(text: str, user_prompt: str, next_index: int) -
     base_x = 96 + (next_index % 4) * 34
     base_y = 96 + (next_index % 5) * 30
     size = _widget_size_for(widget_type, config)
+    safe_config = _ensure_functional_config(widget_type, _sanitize_widget_config(config), user_prompt, title)
     manifest = {
         "id": f"widget_{_safe_token(title)}_{secrets.token_hex(3)}",
         "type": widget_type,
@@ -683,7 +684,7 @@ def _coerce_declarative_manifest(text: str, user_prompt: str, next_index: int) -
             "endpoint": data_source.get("endpoint") if source_type == "http_endpoint" else None,
             "params": data_source.get("params") if isinstance(data_source.get("params"), dict) else {},
         },
-        "config": _sanitize_widget_config(config),
+        "config": safe_config,
         "actions": actions[:12],
         "permissions": {"canRead": True, "canWrite": widget_type in {"form", "checklist"}, "canExecuteActions": True},
     }
@@ -779,6 +780,32 @@ def _sanitize_widget_config(config: dict[str, Any]) -> dict[str, Any]:
     if isinstance(safe.get("actions"), list):
         safe["actions"] = [_coerce_safe_form_action(item) for item in safe["actions"] if isinstance(item, dict)][:12]
     return safe
+
+
+def _ensure_functional_config(widget_type: str, config: dict[str, Any], prompt: str, title: str) -> dict[str, Any]:
+    if widget_type != "form":
+        return config
+    text = f"{prompt} {title}".lower()
+    fields = config.get("fields") if isinstance(config.get("fields"), list) else []
+    actions = config.get("actions") if isinstance(config.get("actions"), list) else []
+    if not fields:
+        if re.search(r"busc|search|google|web", text):
+            fields = [{"id": "query", "label": "Busqueda", "type": "search", "placeholder": "Texto a buscar", "options": []}]
+        elif re.search(r"calcul|calc|operaci[oó]n", text):
+            fields = [{"id": "expression", "label": "Operacion", "type": "text", "placeholder": "Ejemplo: 6*6", "options": []}]
+        else:
+            fields = [{"id": "value", "label": "Valor", "type": "text", "placeholder": "Introduce un dato", "options": []}]
+    primary_field = fields[0].get("id") or "value"
+    if not actions:
+        if re.search(r"busc|search|google|web", text):
+            actions = [{"id": "search", "label": "Buscar", "type": "open_url", "urlTemplate": "https://www.google.com/search?q={%s}" % primary_field, "field": primary_field}]
+        elif re.search(r"calcul|calc|operaci[oó]n", text):
+            actions = [{"id": "calculate", "label": "Calcular", "type": "calculate_expression", "field": primary_field}]
+        else:
+            actions = [{"id": "show", "label": "Mostrar", "type": "show_value", "field": primary_field}]
+    config["fields"] = fields
+    config["actions"] = actions
+    return config
 
 
 def _coerce_safe_form_field(item: dict[str, Any]) -> dict[str, Any]:
