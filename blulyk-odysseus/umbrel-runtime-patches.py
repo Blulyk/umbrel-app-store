@@ -405,6 +405,110 @@ replace_once(
 )
 
 replace_once(
+    "routes/skills_routes.py",
+    """            "body_extra": sk.body_extra,
+        })
+        if not ok:
+""",
+    """            "body_extra": sk.body_extra,
+        }, owner=user)
+        if not ok:
+""",
+)
+
+replace_once(
+    "routes/skills_routes.py",
+    """        ok = skills_manager.update_skill(match.get("name"), updates)
+        if not ok:
+""",
+    """        ok = skills_manager.update_skill(match.get("name"), updates, owner=user)
+        if not ok:
+""",
+)
+
+replace_once(
+    "routes/skills_routes.py",
+    """        ok = skills_manager.delete_skill(match.get("name"))
+        if not ok:
+""",
+    """        ok = skills_manager.delete_skill(match.get("name"), owner=user)
+        if not ok:
+""",
+)
+
+replace_once(
+    "static/js/tasks.js",
+    """async function _createTask(data) {
+  const res = await fetch(`${API_BASE}/api/tasks`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to create task');
+  return await res.json();
+}
+
+async function _updateTask(id, data) {
+  const res = await fetch(`${API_BASE}/api/tasks/${id}`, {
+    method: 'PUT',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to update task');
+  return await res.json();
+}
+
+async function _deleteTask(id) {
+  const res = await fetch(`${API_BASE}/api/tasks/${id}`, {
+    method: 'DELETE', credentials: 'same-origin',
+  });
+  if (!res.ok) throw new Error('Failed to delete task');
+}
+""",
+    """async function _taskApiError(res, fallback) {
+  let msg = fallback;
+  try {
+    const data = await res.json();
+    if (data?.detail) msg = data.detail;
+    else if (data?.message) msg = data.message;
+  } catch (_) {}
+  return new Error(`${msg} (${res.status})`);
+}
+
+async function _createTask(data) {
+  const res = await fetch(`${API_BASE}/api/tasks`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw await _taskApiError(res, 'Failed to create task');
+  return await res.json();
+}
+
+async function _updateTask(id, data) {
+  const res = await fetch(`${API_BASE}/api/tasks/${id}`, {
+    method: 'PUT',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw await _taskApiError(res, 'Failed to update task');
+  return await res.json();
+}
+
+async function _deleteTask(id) {
+  const res = await fetch(`${API_BASE}/api/tasks/${id}`, {
+    method: 'DELETE', credentials: 'same-origin',
+  });
+  if (!res.ok) throw await _taskApiError(res, 'Failed to delete task');
+}
+""",
+)
+
+replace_once(
     "src/llm_core.py",
     "import httpx\nimport asyncio\n",
     "import httpx\nimport asyncio\nimport os\n",
