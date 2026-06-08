@@ -1,0 +1,31 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      APP_HOST: blulyk-hermes-webui_web_1
+      APP_PORT: 8787
+
+  web:
+    image: ghcr.io/nesquena/hermes-webui:latest
+    container_name: blulyk-hermes-webui_web_1
+    restart: unless-stopped
+    environment:
+      HERMES_WEBUI_HOST: "0.0.0.0"
+      HERMES_WEBUI_PORT: "8787"
+      HERMES_WEBUI_CHAT_BACKEND: "gateway"
+      HERMES_WEBUI_GATEWAY_BASE_URL: "http://host.docker.internal:8642"
+      HERMES_API_URL: "http://host.docker.internal:8642"
+      HERMES_WEBUI_GATEWAY_API_KEY: "jarvis-hermes-bridge"
+      API_SERVER_KEY: "jarvis-hermes-bridge"
+      HERMES_HOME: "/home/hermeswebui/.hermes"
+      HERMES_WEBUI_STATE_DIR: "/home/hermeswebui/.hermes/webui"
+      HERMES_WEBUI_DEFAULT_WORKSPACE: "/workspace"
+      HERMES_WEBUI_SKIP_ONBOARDING: "1"
+      HERMES_SKIP_CHMOD: "1"
+      TZ: "Europe/Madrid"
+    volumes:
+      - "${APP_DATA_DIR}/data:/home/hermeswebui/.hermes"
+      - "${APP_DATA_DIR}/workspace:/workspace"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
