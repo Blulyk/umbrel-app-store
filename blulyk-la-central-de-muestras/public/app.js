@@ -44,12 +44,16 @@ function render() {
     const node = template.content.firstElementChild.cloneNode(true);
     const title = node.querySelector("h2");
     const meta = node.querySelector(".meta");
+    const linkLine = node.querySelector(".link-line");
     const open = node.querySelector(".open");
     const copy = node.querySelector(".copy");
-    const toggle = node.querySelector(".toggle");
+    const publish = node.querySelector(".publish");
+    const unpublish = node.querySelector(".unpublish");
 
     title.textContent = project.name;
     meta.textContent = projectMeta(project);
+    linkLine.textContent = project.enabled && project.publicUrl ? project.publicUrl : "Sin enlace publico activo";
+    linkLine.classList.toggle("active", project.enabled && project.publicUrl);
 
     open.href = project.publicUrl || "#";
     open.classList.toggle("disabled-link", !project.enabled);
@@ -63,12 +67,18 @@ function render() {
       setStatus(`Enlace copiado: ${project.publicUrl}`);
     });
 
-    toggle.disabled = !project.hasIndex;
-    toggle.textContent = project.enabled ? "Desactivar" : "Crear enlace";
-    toggle.classList.add(project.enabled ? "enabled" : "disabled");
-    toggle.addEventListener("click", async () => {
-      const action = project.enabled ? "disable" : "enable";
-      await api(`/api/projects/${encodeURIComponent(project.name)}/${action}`, { method: "POST" });
+    publish.disabled = !project.hasIndex || project.enabled;
+    publish.addEventListener("click", async () => {
+      const result = await api(`/api/projects/${encodeURIComponent(project.name)}/enable`, { method: "POST" });
+      setStatus(`Enlace creado: ${result.project.publicUrl}`);
+      await load();
+    });
+
+    unpublish.disabled = !project.enabled;
+    unpublish.classList.add("danger");
+    unpublish.addEventListener("click", async () => {
+      await api(`/api/projects/${encodeURIComponent(project.name)}/disable`, { method: "POST" });
+      setStatus(`Enlace despublicado para ${project.name}`);
       await load();
     });
 

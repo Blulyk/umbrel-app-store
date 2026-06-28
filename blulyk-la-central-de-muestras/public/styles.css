@@ -156,6 +156,19 @@ h2 {
   font-size: 14px;
 }
 
+.link-line {
+  margin-top: 8px;
+  max-width: min(680px, 100%);
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 13px;
+}
+
+.link-line.active {
+  color: var(--accent-2);
+}
+
 .project-actions {
   display: flex;
   flex-wrap: wrap;
@@ -185,9 +198,15 @@ h2 {
   color: #ffd7d7;
 }
 
-.project-actions .toggle.disabled {
+.project-actions .toggle.disabled,
+.project-actions .publish {
   border-color: rgba(17, 183, 199, 0.55);
   background: rgba(17, 183, 199, 0.16);
+}
+
+.project-actions .danger {
+  border-color: rgba(255, 107, 107, 0.5);
+  color: #ffd7d7;
 }
 
 .project-actions [disabled],
