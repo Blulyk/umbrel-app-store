@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { hostnameForProject } from "./funnel.js";
 
 const SAFE_PROJECT_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/;
 
@@ -10,7 +11,8 @@ export function assertSafeProjectName(name) {
   return name;
 }
 
-export function projectUrl(publicBaseUrl, name) {
+export function projectUrl({ publicBaseUrl = "", tailnetDomain = "" }, name) {
+  if (tailnetDomain) return `https://${hostnameForProject(name)}.${tailnetDomain}/`;
   if (!publicBaseUrl) return "";
   return `${publicBaseUrl.replace(/\/+$/, "")}/_muestras/${encodeURIComponent(name)}/`;
 }
@@ -42,10 +44,11 @@ async function writeJson(file, value) {
 }
 
 export class ProjectRegistry {
-  constructor({ projectsDir, dataDir, publicBaseUrl = "" }) {
+  constructor({ projectsDir, dataDir, publicBaseUrl = "", tailnetDomain = "" }) {
     this.projectsDir = projectsDir;
     this.dataDir = dataDir;
     this.publicBaseUrl = publicBaseUrl;
+    this.tailnetDomain = tailnetDomain;
     this.statePath = path.join(dataDir, "state.json");
   }
 
@@ -105,7 +108,7 @@ export class ProjectRegistry {
         name,
         hasIndex,
         enabled,
-        publicUrl: enabled ? projectUrl(this.publicBaseUrl, name) : "",
+        publicUrl: enabled ? projectUrl({ publicBaseUrl: this.publicBaseUrl, tailnetDomain: this.tailnetDomain }, name) : "",
         path: path.join(this.projectsDir, name)
       };
     }));

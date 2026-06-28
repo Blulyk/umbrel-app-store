@@ -13,7 +13,22 @@ async function withServer() {
   const app = createApp({
     projectsDir,
     dataDir,
-    publicBaseUrl: "https://umbrel.tailcbdb4e.ts.net"
+    tailnetDomain: "tailcbdb4e.ts.net",
+    docker: null,
+    initialConfig: {
+      tailnetDomain: "tailcbdb4e.ts.net",
+      authKey: "tskey-auth-test"
+    },
+    funnelManager: {
+      published: [],
+      unpublished: [],
+      async publish(project) {
+        this.published.push(project.name);
+      },
+      async unpublish(name) {
+        this.unpublished.push(name);
+      }
+    }
   });
   const server = http.createServer(app);
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -61,7 +76,7 @@ test("POST /api/projects/:name/enable creates a public URL", async () => {
 
     assert.equal(response.status, 200);
     assert.equal(body.project.enabled, true);
-    assert.equal(body.project.publicUrl, "https://umbrel.tailcbdb4e.ts.net/_muestras/web_fontanero/");
+    assert.equal(body.project.publicUrl, "https://muestra-web-fontanero.tailcbdb4e.ts.net/");
   } finally {
     await ctx.close();
   }

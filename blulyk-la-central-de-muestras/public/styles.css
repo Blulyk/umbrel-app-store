@@ -101,6 +101,45 @@ h1 {
   color: var(--muted);
 }
 
+.config {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.4fr) auto;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(17, 22, 27, 0.86);
+}
+
+.config label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.config input {
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0b1014;
+  color: var(--text);
+  padding: 0 10px;
+  font: inherit;
+}
+
+.config button {
+  align-self: end;
+  min-height: 40px;
+  border: 1px solid rgba(17, 183, 199, 0.55);
+  border-radius: 8px;
+  background: rgba(17, 183, 199, 0.16);
+  color: var(--text);
+  padding: 0 12px;
+  cursor: pointer;
+}
+
 .toolbar strong {
   display: block;
   margin-bottom: 3px;
@@ -236,6 +275,10 @@ h2 {
   }
 
   .project {
+    grid-template-columns: 1fr;
+  }
+
+  .config {
     grid-template-columns: 1fr;
   }
 

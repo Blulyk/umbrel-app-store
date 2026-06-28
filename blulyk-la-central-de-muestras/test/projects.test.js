@@ -15,7 +15,7 @@ async function makeRegistry() {
     registry: new ProjectRegistry({
       projectsDir: root,
       dataDir: data,
-      publicBaseUrl: "https://umbrel.tailcbdb4e.ts.net"
+      tailnetDomain: "tailcbdb4e.ts.net"
     })
   };
 }
@@ -53,12 +53,12 @@ test("setEnabled persists enabled project state and public URL", async () => {
   await registry.setEnabled("web_fontanero", true);
   let projects = await registry.listProjects();
   assert.equal(projects[0].enabled, true);
-  assert.equal(projects[0].publicUrl, "https://umbrel.tailcbdb4e.ts.net/_muestras/web_fontanero/");
+  assert.equal(projects[0].publicUrl, "https://muestra-web-fontanero.tailcbdb4e.ts.net/");
 
   const reloaded = new ProjectRegistry({
     projectsDir: root,
     dataDir: registry.dataDir,
-    publicBaseUrl: "https://umbrel.tailcbdb4e.ts.net"
+    tailnetDomain: "tailcbdb4e.ts.net"
   });
   projects = await reloaded.listProjects();
   assert.equal(projects[0].enabled, true);

@@ -3,9 +3,12 @@ const statusEl = document.querySelector("#status");
 const countEl = document.querySelector("#count");
 const projectsDirEl = document.querySelector("#projectsDir");
 const refreshButton = document.querySelector("#refresh");
+const saveConfigButton = document.querySelector("#saveConfig");
+const tailnetDomainInput = document.querySelector("#tailnetDomain");
+const authKeyInput = document.querySelector("#authKey");
 const template = document.querySelector("#project-template");
 
-let state = { projects: [], publicBaseUrl: "", projectsDir: "/projects" };
+let state = { projects: [], tailnetDomain: "", hasAuthKey: false, projectsDir: "/projects" };
 
 function setStatus(message, strong = "") {
   statusEl.innerHTML = strong ? `<strong>${strong}</strong> ${message}` : message;
@@ -29,10 +32,10 @@ function render() {
   countEl.textContent = `${state.projects.length} ${state.projects.length === 1 ? "proyecto" : "proyectos"}`;
   projectsDirEl.textContent = state.projectsDir;
 
-  if (!state.publicBaseUrl) {
-    setStatus("Configura PUBLIC_BASE_URL con tu URL de Tailscale Funnel para ver enlaces completos.", "Funnel:");
+  if (!state.tailnetDomain || !state.hasAuthKey) {
+    setStatus("Guarda tu dominio tailnet y una auth key reutilizable para crear Funnels independientes.", "Funnel:");
   } else {
-    setStatus(`Base publica: ${state.publicBaseUrl}`, "Funnel:");
+    setStatus(`Cada proyecto creara su propio hostname en ${state.tailnetDomain}.`, "Funnel:");
   }
 
   if (!state.projects.length) {
@@ -69,6 +72,10 @@ function render() {
 
     publish.disabled = !project.hasIndex || project.enabled;
     publish.addEventListener("click", async () => {
+      if (!state.hasAuthKey) {
+        setStatus("Falta guardar una Tailscale auth key reutilizable.", "Funnel:");
+        return;
+      }
       const result = await api(`/api/projects/${encodeURIComponent(project.name)}/enable`, { method: "POST" });
       setStatus(`Enlace creado: ${result.project.publicUrl}`);
       await load();
@@ -90,6 +97,8 @@ async function load() {
   refreshButton.disabled = true;
   try {
     state = await api("/api/projects");
+    tailnetDomainInput.value = state.tailnetDomain || "";
+    authKeyInput.placeholder = state.hasAuthKey ? "Clave guardada" : "tskey-auth-...";
     render();
   } catch (error) {
     setStatus(error.message, "Error:");
@@ -99,4 +108,24 @@ async function load() {
 }
 
 refreshButton.addEventListener("click", load);
+saveConfigButton.addEventListener("click", async () => {
+  saveConfigButton.disabled = true;
+  try {
+    const payload = {
+      tailnetDomain: tailnetDomainInput.value.trim(),
+      authKey: authKeyInput.value.trim()
+    };
+    await api("/api/config", {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    });
+    authKeyInput.value = "";
+    setStatus("Configuracion guardada.");
+    await load();
+  } catch (error) {
+    setStatus(error.message, "Error:");
+  } finally {
+    saveConfigButton.disabled = false;
+  }
+});
 load();
