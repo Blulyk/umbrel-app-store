@@ -23,6 +23,9 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -35,7 +38,7 @@ jobs:
         with:
           context: ./blulyk-la-central-de-muestras
           push: true
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           tags: |
             ghcr.io/blulyk/la-central-de-muestras:latest
             ghcr.io/blulyk/la-central-de-muestras:${{ github.sha }}
