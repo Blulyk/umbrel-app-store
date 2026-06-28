@@ -1,0 +1,26 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      APP_HOST: blulyk-la-central-de-muestras_server_1
+      APP_PORT: 3000
+      PROXY_AUTH_ADD: "false"
+
+  server:
+    image: ghcr.io/blulyk/la-central-de-muestras:latest
+    user: "1000:1000"
+    init: true
+    restart: on-failure
+    environment:
+      NODE_ENV: "production"
+      PORT: "3000"
+      DATA_DIR: "/data"
+      PROJECTS_DIR: "/projects"
+      PUBLIC_BASE_URL: "https://umbrel.tailcbdb4e.ts.net"
+      TZ: "Europe/Madrid"
+    volumes:
+      - "${APP_DATA_DIR}/data:/data"
+      - "/home/umbrel/umbrel/home/proyectos:/projects:ro"
+    ports:
+      - "3037:3000"

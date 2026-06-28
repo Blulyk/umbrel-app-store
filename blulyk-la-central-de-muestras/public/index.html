@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>La central de muestras</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="topbar">
+        <div>
+          <p class="eyebrow">Blulyk Umbrel</p>
+          <h1>La central de muestras</h1>
+        </div>
+        <button id="refresh" class="icon-button" type="button" title="Actualizar">↻</button>
+      </section>
+
+      <section id="status" class="status"></section>
+
+      <section class="toolbar">
+        <div>
+          <strong id="count">0 proyectos</strong>
+          <span>Carpetas detectadas en <code id="projectsDir">/projects</code></span>
+        </div>
+      </section>
+
+      <section id="projects" class="projects" aria-live="polite"></section>
+    </main>
+
+    <template id="project-template">
+      <article class="project">
+        <div class="project-main">
+          <div class="project-icon">⌁</div>
+          <div>
+            <h2></h2>
+            <p class="meta"></p>
+          </div>
+        </div>
+        <div class="project-actions">
+          <a class="open" target="_blank" rel="noreferrer">Abrir</a>
+          <button class="copy" type="button">Copiar enlace</button>
+          <button class="toggle" type="button"></button>
+        </div>
+      </article>
+    </template>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
