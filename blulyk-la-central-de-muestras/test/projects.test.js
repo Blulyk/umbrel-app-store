@@ -15,7 +15,7 @@ async function makeRegistry() {
     registry: new ProjectRegistry({
       projectsDir: root,
       dataDir: data,
-      tailnetDomain: "tailcbdb4e.ts.net"
+      publicBaseUrl: "https://umbrel.tailcbdb4e.ts.net:10000"
     })
   };
 }
@@ -45,23 +45,30 @@ test("listProjects returns immediate folders and marks websites with index.html"
   assert.equal(projects.find((project) => project.name === "notas").hasIndex, false);
 });
 
-test("setEnabled persists enabled project state and public URL", async () => {
+test("setEnabled persists a single active project and public URL", async () => {
   const { root, registry } = await makeRegistry();
   await fs.mkdir(path.join(root, "web_fontanero"), { recursive: true });
   await fs.writeFile(path.join(root, "web_fontanero", "index.html"), "<h1>Fontanero</h1>");
+  await fs.mkdir(path.join(root, "web_pintor"), { recursive: true });
+  await fs.writeFile(path.join(root, "web_pintor", "index.html"), "<h1>Pintor</h1>");
 
   await registry.setEnabled("web_fontanero", true);
   let projects = await registry.listProjects();
-  assert.equal(projects[0].enabled, true);
-  assert.equal(projects[0].publicUrl, "https://muestra-web-fontanero.tailcbdb4e.ts.net/");
+  assert.equal(projects.find((project) => project.name === "web_fontanero").enabled, true);
+  assert.equal(projects.find((project) => project.name === "web_fontanero").publicUrl, "https://umbrel.tailcbdb4e.ts.net:10000/");
+
+  await registry.setEnabled("web_pintor", true);
+  projects = await registry.listProjects();
+  assert.equal(projects.find((project) => project.name === "web_fontanero").enabled, false);
+  assert.equal(projects.find((project) => project.name === "web_pintor").enabled, true);
 
   const reloaded = new ProjectRegistry({
     projectsDir: root,
     dataDir: registry.dataDir,
-    tailnetDomain: "tailcbdb4e.ts.net"
+    publicBaseUrl: "https://umbrel.tailcbdb4e.ts.net:10000"
   });
   projects = await reloaded.listProjects();
-  assert.equal(projects[0].enabled, true);
+  assert.equal(projects.find((project) => project.name === "web_pintor").enabled, true);
 });
 
 test("setEnabled refuses folders without index.html", async () => {

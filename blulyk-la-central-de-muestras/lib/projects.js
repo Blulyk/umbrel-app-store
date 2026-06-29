@@ -1,6 +1,5 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { hostnameForProject } from "./funnel.js";
 
 const SAFE_PROJECT_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/;
 
@@ -11,10 +10,9 @@ export function assertSafeProjectName(name) {
   return name;
 }
 
-export function projectUrl({ publicBaseUrl = "", tailnetDomain = "" }, name) {
-  if (tailnetDomain) return `https://${hostnameForProject(name)}.${tailnetDomain}/`;
+export function projectUrl(publicBaseUrl) {
   if (!publicBaseUrl) return "";
-  return `${publicBaseUrl.replace(/\/+$/, "")}/_muestras/${encodeURIComponent(name)}/`;
+  return `${publicBaseUrl.replace(/\/+$/, "")}/`;
 }
 
 export function publicProjectPath(projectsDir, name, requestPath = "/") {
@@ -44,33 +42,26 @@ async function writeJson(file, value) {
 }
 
 export class ProjectRegistry {
-  constructor({ projectsDir, dataDir, publicBaseUrl = "", tailnetDomain = "" }) {
+  constructor({ projectsDir, dataDir, publicBaseUrl = "" }) {
     this.projectsDir = projectsDir;
     this.dataDir = dataDir;
     this.publicBaseUrl = publicBaseUrl;
-    this.tailnetDomain = tailnetDomain;
     this.statePath = path.join(dataDir, "state.json");
   }
 
   async readState() {
-    const state = await readJson(this.statePath, { enabled: [] });
-    return {
-      enabled: Array.isArray(state.enabled)
-        ? state.enabled.filter((name) => {
-            try {
-              assertSafeProjectName(name);
-              return true;
-            } catch {
-              return false;
-            }
-          })
-        : []
-    };
+    const state = await readJson(this.statePath, { activeProject: "" });
+    let activeProject = "";
+    try {
+      activeProject = state.activeProject ? assertSafeProjectName(state.activeProject) : "";
+    } catch {
+      activeProject = "";
+    }
+    return { activeProject };
   }
 
   async writeState(state) {
-    const enabled = [...new Set(state.enabled.map(assertSafeProjectName))].sort();
-    await writeJson(this.statePath, { enabled });
+    await writeJson(this.statePath, { activeProject: state.activeProject ? assertSafeProjectName(state.activeProject) : "" });
   }
 
   async projectHasIndex(name) {
@@ -86,7 +77,6 @@ export class ProjectRegistry {
     await fs.mkdir(this.projectsDir, { recursive: true });
     await fs.mkdir(this.dataDir, { recursive: true });
     const state = await this.readState();
-    const enabledSet = new Set(state.enabled);
     const entries = await fs.readdir(this.projectsDir, { withFileTypes: true });
     const folders = entries
       .filter((entry) => entry.isDirectory())
@@ -103,12 +93,12 @@ export class ProjectRegistry {
 
     return Promise.all(folders.map(async (name) => {
       const hasIndex = await this.projectHasIndex(name);
-      const enabled = hasIndex && enabledSet.has(name);
+      const enabled = hasIndex && state.activeProject === name;
       return {
         name,
         hasIndex,
         enabled,
-        publicUrl: enabled ? projectUrl({ publicBaseUrl: this.publicBaseUrl, tailnetDomain: this.tailnetDomain }, name) : "",
+        publicUrl: enabled ? projectUrl(this.publicBaseUrl) : "",
         path: path.join(this.projectsDir, name)
       };
     }));
@@ -126,11 +116,9 @@ export class ProjectRegistry {
     if (!project) throw new Error("Proyecto no encontrado");
     if (enabled && !project.hasIndex) throw new Error("El proyecto necesita un index.html");
 
-    const state = await this.readState();
-    const enabledSet = new Set(state.enabled);
-    if (enabled) enabledSet.add(safeName);
-    else enabledSet.delete(safeName);
-    await this.writeState({ enabled: [...enabledSet] });
+    const current = await this.readState();
+    const activeProject = enabled ? safeName : current.activeProject === safeName ? "" : current.activeProject;
+    await this.writeState({ activeProject });
 
     return this.getProject(safeName);
   }
@@ -138,5 +126,10 @@ export class ProjectRegistry {
   async isEnabled(name) {
     const project = await this.getProject(name);
     return Boolean(project?.enabled);
+  }
+
+  async activeProject() {
+    const state = await this.readState();
+    return state.activeProject ? this.getProject(state.activeProject) : null;
   }
 }

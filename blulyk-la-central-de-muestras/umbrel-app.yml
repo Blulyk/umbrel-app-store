@@ -8,17 +8,17 @@ version: "0.1.0"
 port: 3037
 description: >-
   La central de muestras detecta carpetas de webs estaticas dentro de tu
-  carpeta proyectos de Umbrel y te permite crear o desactivar enlaces publicos
-  HTTPS para ensenarlas a clientes. Cada proyecto es una carpeta con su
-  index.html, CSS, JavaScript y recursos. La app sirve las muestras activas bajo
-  rutas publicas pensadas para usarse con Tailscale Funnel, por ejemplo
-  https://umbrel.tailcbdb4e.ts.net/_muestras/web_fontanero/.
+  carpeta proyectos de Umbrel y te permite elegir que web se muestra en un
+  unico enlace publico HTTPS de Tailscale Funnel. Cada proyecto es una carpeta
+  con su index.html, CSS, JavaScript y recursos. Como normalmente solo necesitas
+  ensenar una propuesta cada vez, la app mantiene una unica muestra activa y el
+  mismo enlace pasa a apuntar a la carpeta seleccionada.
 
 
-  Para la V1, la app publica webs estaticas. No ejecuta servidores de
+  Para esta version, la app publica webs estaticas. No ejecuta servidores de
   desarrollo como Vite, Next o Astro. El Funnel se configura una vez en el host
-  apuntando al puerto 3037, y desde entonces puedes activar o apagar muestras
-  desde el panel.
+  apuntando a la ruta activa de la app, y desde entonces puedes cambiar la web
+  publicada desde el panel.
 developer: Blulyk
 website: https://github.com/Blulyk/umbrel-app-store
 dependencies: []
@@ -31,6 +31,6 @@ defaultPassword: ""
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store
 releaseNotes: >-
-  V1 inicial: escaneo de la carpeta proyectos, activacion/desactivacion de
-  muestras, enlaces publicos por ruta, estado persistente y servidor estatico
-  seguro para HTML, CSS, JavaScript y recursos.
+  Modelo de enlace unico: escaneo de la carpeta proyectos, seleccion de una
+  muestra activa, apagado de la muestra y servidor estatico seguro para HTML,
+  CSS, JavaScript y recursos.

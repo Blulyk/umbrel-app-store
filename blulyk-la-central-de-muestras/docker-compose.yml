@@ -16,10 +16,8 @@ services:
       PORT: "3000"
       DATA_DIR: "/data"
       PROJECTS_DIR: "/projects"
-      HOST_PROJECTS_DIR: "/home/umbrel/umbrel/home/proyectos"
-      TAILNET_DOMAIN: "tailcbdb4e.ts.net"
+      PUBLIC_BASE_URL: "https://umbrel.tailcbdb4e.ts.net:10000"
       TZ: "Europe/Madrid"
     volumes:
       - "${APP_DATA_DIR}/data:/data"
       - "/home/umbrel/umbrel/home/proyectos:/projects:ro"
-      - "/var/run/docker.sock:/var/run/docker.sock"

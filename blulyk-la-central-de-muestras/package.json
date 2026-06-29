@@ -9,7 +9,6 @@
     "test": "node --test"
   },
   "dependencies": {
-    "dockerode": "^5.0.1",
     "express": "4.22.2"
   }
 }

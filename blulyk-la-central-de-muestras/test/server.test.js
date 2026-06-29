@@ -13,22 +13,7 @@ async function withServer() {
   const app = createApp({
     projectsDir,
     dataDir,
-    tailnetDomain: "tailcbdb4e.ts.net",
-    docker: null,
-    initialConfig: {
-      tailnetDomain: "tailcbdb4e.ts.net",
-      authKey: "tskey-auth-test"
-    },
-    funnelManager: {
-      published: [],
-      unpublished: [],
-      async publish(project) {
-        this.published.push(project.name);
-      },
-      async unpublish(name) {
-        this.unpublished.push(name);
-      }
-    }
+    publicBaseUrl: "https://umbrel.tailcbdb4e.ts.net:10000"
   });
   const server = http.createServer(app);
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -76,7 +61,7 @@ test("POST /api/projects/:name/enable creates a public URL", async () => {
 
     assert.equal(response.status, 200);
     assert.equal(body.project.enabled, true);
-    assert.equal(body.project.publicUrl, "https://muestra-web-fontanero.tailcbdb4e.ts.net/");
+    assert.equal(body.project.publicUrl, "https://umbrel.tailcbdb4e.ts.net:10000/");
   } finally {
     await ctx.close();
   }
@@ -96,6 +81,25 @@ test("GET /_muestras/:project serves only enabled projects", async () => {
 
     assert.equal(response.status, 200);
     assert.match(await response.text(), /Hola cliente/);
+  } finally {
+    await ctx.close();
+  }
+});
+
+test("GET /_active serves the active project at the root", async () => {
+  const ctx = await withServer();
+  try {
+    await fs.mkdir(path.join(ctx.projectsDir, "web_fontanero"));
+    await fs.writeFile(path.join(ctx.projectsDir, "web_fontanero", "index.html"), "<h1>Hola activo</h1>");
+
+    let response = await fetch(`${ctx.baseUrl}/_active/`);
+    assert.equal(response.status, 404);
+
+    await requestJson(ctx.baseUrl, "/api/projects/web_fontanero/enable", { method: "POST" });
+    response = await fetch(`${ctx.baseUrl}/_active/`);
+
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /Hola activo/);
   } finally {
     await ctx.close();
   }
