@@ -56,6 +56,10 @@ function stateLabel(app) {
   return "parada";
 }
 
+function iconSrc(src) {
+  return src || "/icon.svg";
+}
+
 function renderGrid() {
   const query = els.search.value.trim().toLowerCase();
   const apps = state.apps.filter((app) => {
@@ -68,7 +72,7 @@ function renderGrid() {
     .map(
       (app) => `
         <button class="app-card ${app.id === state.selectedId ? "active" : ""}" data-id="${escapeHtml(app.id)}">
-          <img class="app-icon" src="${escapeHtml(app.icon)}" alt="" loading="lazy" />
+          <img class="app-icon" src="${escapeHtml(iconSrc(app.icon))}" alt="" loading="lazy" onerror="this.src='/icon.svg'" />
           <div class="app-copy">
             <div class="row">
               <span class="name">${escapeHtml(app.name)}</span>
@@ -244,7 +248,10 @@ function renderDetail() {
   els.empty.classList.add("hidden");
   els.detail.classList.remove("hidden");
   els.title.textContent = state.detail.name;
-  els.icon.src = state.detail.icon || "/icon.svg";
+  els.icon.src = iconSrc(state.detail.icon);
+  els.icon.onerror = () => {
+    els.icon.src = "/icon.svg";
+  };
   els.meta.textContent = `${state.detail.id}${state.detail.version ? ` · v${state.detail.version}` : ""}`;
   els.restart.disabled = false;
 

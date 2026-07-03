@@ -5,6 +5,7 @@ services:
     environment:
       APP_HOST: blulyk-container-studio_web_1
       APP_PORT: 3018
+      PROXY_AUTH_ADD: "false"
 
   web:
     image: ghcr.io/blulyk/umbrel-container-studio:latest
