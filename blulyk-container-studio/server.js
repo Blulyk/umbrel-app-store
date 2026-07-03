@@ -450,7 +450,7 @@ async function serveStatic(req, res, url) {
     const ext = path.extname(filePath);
     res.writeHead(200, {
       "content-type": mimeTypes[ext] || "application/octet-stream",
-      "cache-control": ext === ".html" ? "no-store" : "public, max-age=3600",
+      "cache-control": "no-store",
     });
     res.end(body);
   } catch {

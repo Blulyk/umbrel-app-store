@@ -38,5 +38,5 @@ jobs:
           platforms: linux/amd64
           tags: |
             ghcr.io/blulyk/umbrel-container-studio:latest
-            ghcr.io/blulyk/umbrel-container-studio:0.2.2
+            ghcr.io/blulyk/umbrel-container-studio:0.2.3
             ghcr.io/blulyk/umbrel-container-studio:${{ github.sha }}

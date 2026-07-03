@@ -4,7 +4,7 @@ name: Container Studio
 tagline: Visual container manager for UmbrelOS
 icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-container-studio/icon.svg
 category: developer
-version: "0.2.2"
+version: "0.2.3"
 port: 3018
 description: >-
   Container Studio is a visual Docker and Umbrel app manager inspired by the
@@ -29,6 +29,6 @@ defaultPassword: ""
 submitter: Blulyk
 submission: https://github.com/Blulyk/umbrel-app-store
 releaseNotes: >-
-  v0.2.2 fixes update stability by keeping the app proxy compatible with
-  Umbrel's Compose-managed containers and makes variable saves recreate
-  services on the Umbrel network with automatic Compose backups.
+  v0.2.3 disables browser caching for app assets and busts the JS/CSS URLs so
+  Umbrel immediately shows the current app grid and environment editor after
+  updates.
