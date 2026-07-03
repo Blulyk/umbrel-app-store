@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Umbrel Container Studio</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <aside class="sidebar">
+        <header class="brand">
+          <div class="mark">U</div>
+          <div>
+            <h1>Container Studio</h1>
+            <p>Editor visual para UmbrelOS</p>
+          </div>
+        </header>
+
+        <div class="toolbar">
+          <input id="search" type="search" placeholder="Buscar contenedor..." autocomplete="off" />
+          <button id="refresh" type="button" title="Actualizar">Actualizar</button>
+        </div>
+
+        <section id="containerList" class="container-list" aria-label="Contenedores"></section>
+      </aside>
+
+      <section class="workspace">
+        <nav class="topbar">
+          <div>
+            <p class="eyebrow">UmbrelOS</p>
+            <h2 id="containerTitle">Selecciona un contenedor</h2>
+          </div>
+          <div class="actions">
+            <button id="startBtn" type="button" disabled>Arrancar</button>
+            <button id="stopBtn" type="button" disabled>Parar</button>
+            <button id="restartBtn" type="button" disabled>Reiniciar</button>
+          </div>
+        </nav>
+
+        <section id="emptyState" class="empty">
+          <div>
+            <h3>Gestiona tus contenedores sin abrir SSH</h3>
+            <p>Este primer prototipo lista Docker, enseña configuración y permite acciones básicas de control.</p>
+          </div>
+        </section>
+
+        <section id="detail" class="detail hidden">
+          <div class="tabs">
+            <button class="tab active" data-tab="overview">Configuración</button>
+            <button class="tab" data-tab="ports">Puertos y red</button>
+            <button class="tab" data-tab="env">Variables</button>
+            <button class="tab" data-tab="files">Compose</button>
+            <button class="tab" data-tab="logs">Logs</button>
+          </div>
+
+          <div class="panel active" id="overview"></div>
+          <div class="panel" id="ports"></div>
+          <div class="panel" id="env"></div>
+          <div class="panel" id="files"></div>
+          <div class="panel" id="logs"></div>
+        </section>
+      </section>
+    </main>
+
+    <div id="toast" class="toast hidden"></div>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

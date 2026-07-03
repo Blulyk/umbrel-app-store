@@ -1,0 +1,34 @@
+manifestVersion: 1
+id: blulyk-container-studio
+name: Container Studio
+tagline: Visual container manager for UmbrelOS
+icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-container-studio/icon.svg
+category: developer
+version: "0.1.0"
+port: 3018
+description: >-
+  Container Studio is a visual Docker and Umbrel app inspector inspired by the
+  ZimaOS container editor. It lists running and stopped containers, displays
+  images, status, ports, networks, mounts, environment variables, Compose files
+  and recent logs, and lets you start, stop or restart containers from a web UI.
+
+
+  This first prototype is intentionally conservative: it reads Umbrel compose
+  files and hides sensitive environment values, but does not write compose
+  changes yet. Future versions can add safe editing with automatic backups,
+  validation and rollback.
+developer: Blulyk
+website: https://github.com/Blulyk/umbrel-app-store
+dependencies: []
+repo: https://github.com/Blulyk/umbrel-app-store
+support: https://github.com/Blulyk/umbrel-app-store/issues
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+submitter: Blulyk
+submission: https://github.com/Blulyk/umbrel-app-store
+releaseNotes: >-
+  Initial functional prototype with container listing, inspection, ports,
+  mounts, environment variables, compose preview, logs and start/stop/restart
+  actions.

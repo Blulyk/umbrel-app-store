@@ -1,0 +1,20 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      APP_HOST: blulyk-container-studio_web_1
+      APP_PORT: 3018
+
+  web:
+    image: ghcr.io/blulyk/umbrel-container-studio:latest
+    container_name: blulyk-container-studio_web_1
+    restart: unless-stopped
+    environment:
+      PORT: "3018"
+      DOCKER_SOCKET: "/var/run/docker.sock"
+      UMBREL_APP_DATA_ROOT: "/umbrel/app-data"
+      TZ: "Europe/Madrid"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "/home/umbrel/umbrel/app-data:/umbrel/app-data:ro"
