@@ -2,6 +2,7 @@ import { createServer, request as httpRequest } from "node:http";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
@@ -11,6 +12,9 @@ const PORT = Number(process.env.PORT || 3018);
 const DOCKER_SOCKET = process.env.DOCKER_SOCKET || "/var/run/docker.sock";
 const APP_DATA_ROOT = process.env.UMBREL_APP_DATA_ROOT || "/umbrel/app-data";
 const HOST_APP_DATA_ROOT = process.env.HOST_UMBREL_APP_DATA_ROOT || "/home/umbrel/umbrel/app-data";
+const APP_PROXY_IMAGE =
+  process.env.UMBREL_APP_PROXY_IMAGE ||
+  "getumbrel/app-proxy:1.7.0@sha256:ec0de0b944a2e63d52fdd82b3760d90a35f8b442d17a8407afdee3af3e842d5a";
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -283,10 +287,25 @@ async function inspectContainerEnv(containerId) {
 }
 
 async function buildComposeEnv(appId, compose, detail) {
+  const appProxyEnv = compose.services?.app_proxy?.environment || {};
+  const appProxyPort = appProxyEnv.APP_PORT || detail.port || "80";
   const env = {
     ...process.env,
     APP_DATA_DIR: hostAppPath(appId),
     DEVICE_DOMAIN_NAME: process.env.DEVICE_DOMAIN_NAME || "umbrel.local",
+    APP_PROXY_HOSTNAME: `app_proxy_${appId}`,
+    APP_PROXY_PORT: String(appProxyPort),
+    APP_MANIFEST_FILE: path.join(hostAppPath(appId), "umbrel-app.yml"),
+    TOR_DATA_DIR: "/home/umbrel/umbrel/tor/data",
+    TOR_ENTRYPOINT_SCRIPT: "/opt/umbreld/source/modules/apps/legacy-compat/tor-entrypoint.sh",
+    TOR_HS_APP_DIR: `/data/app-${appId}`,
+    TOR_HS_PORTS: `80:app_proxy_${appId}:${appProxyPort}`,
+    AUTH_PORT: process.env.AUTH_PORT || "2000",
+    UMBREL_AUTH_SECRET: process.env.UMBREL_AUTH_SECRET || "DEADBEEF",
+    MANAGER_IP: process.env.MANAGER_IP || "10.21.21.4",
+    JWT_SECRET:
+      process.env.JWT_SECRET ||
+      "01924a139f2a9f180b15bc04034744d8d77ccf733e696da687b76d0ecc144a79",
   };
 
   for (const service of detail.services) {
@@ -300,6 +319,28 @@ async function buildComposeEnv(appId, compose, detail) {
   }
 
   return env;
+}
+
+function composeForRuntime(compose) {
+  const runtime = structuredClone(compose);
+  runtime.services ||= {};
+  if (runtime.services.app_proxy && !runtime.services.app_proxy.image) {
+    runtime.services.app_proxy.image = APP_PROXY_IMAGE;
+  }
+  runtime.networks = {
+    ...(runtime.networks || {}),
+    default: {
+      external: true,
+      name: "umbrel_main_network",
+    },
+  };
+  return runtime;
+}
+
+async function writeRuntimeCompose(appId, compose) {
+  const runtimeComposePath = path.join(tmpdir(), `container-studio-${appId}.docker-compose.yml`);
+  await writeFile(runtimeComposePath, YAML.stringify(composeForRuntime(compose)), "utf8");
+  return runtimeComposePath;
 }
 
 async function saveServiceEnvironment(appId, serviceName, variables) {
@@ -324,9 +365,12 @@ async function saveServiceEnvironment(appId, serviceName, variables) {
 
   const detail = await getAppDetail(appId);
   const composeEnv = await buildComposeEnv(appId, compose, detail);
-  await runCommand("docker", ["compose", "-f", composePath, "-p", appId, "up", "-d", "--force-recreate", serviceName], {
-    env: composeEnv,
-  });
+  const runtimeComposePath = await writeRuntimeCompose(appId, compose);
+  await runCommand(
+    "docker",
+    ["compose", "-f", runtimeComposePath, "-p", appId, "up", "-d", "--force-recreate", serviceName],
+    { env: composeEnv },
+  );
 
   return { ok: true, backup: backupPath.replace(APP_DATA_ROOT, "") };
 }
