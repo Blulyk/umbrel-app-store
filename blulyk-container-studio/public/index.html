@@ -8,58 +8,66 @@
   </head>
   <body>
     <main class="shell">
-      <aside class="sidebar">
-        <header class="brand">
+      <header class="topbar">
+        <div class="brand">
           <div class="mark">U</div>
           <div>
             <h1>Container Studio</h1>
-            <p>Editor visual para UmbrelOS</p>
+            <p>Editor visual para apps de UmbrelOS</p>
           </div>
-        </header>
-
-        <div class="toolbar">
-          <input id="search" type="search" placeholder="Buscar contenedor..." autocomplete="off" />
-          <button id="refresh" type="button" title="Actualizar">Actualizar</button>
         </div>
 
-        <section id="containerList" class="container-list" aria-label="Contenedores"></section>
-      </aside>
+        <div class="toolbar">
+          <input id="search" type="search" placeholder="Buscar app instalada..." autocomplete="off" />
+          <button id="refresh" type="button">Actualizar</button>
+        </div>
+      </header>
 
-      <section class="workspace">
-        <nav class="topbar">
+      <section class="app-screen">
+        <div class="section-title">
           <div>
-            <p class="eyebrow">UmbrelOS</p>
-            <h2 id="containerTitle">Selecciona un contenedor</h2>
+            <p class="eyebrow">Apps instaladas</p>
+            <h2>Selecciona una app para configurarla</h2>
+          </div>
+          <span id="appCount" class="meta"></span>
+        </div>
+        <section id="appGrid" class="app-grid" aria-label="Apps instaladas"></section>
+      </section>
+
+      <section id="emptyState" class="empty">
+        <div>
+          <h3>Sin app seleccionada</h3>
+          <p>Abre una tarjeta para editar variables, revisar puertos, ver compose y reiniciar servicios.</p>
+        </div>
+      </section>
+
+      <section id="detail" class="detail hidden">
+        <nav class="detail-header">
+          <div class="selected-app">
+            <img id="detailIcon" alt="" />
+            <div>
+              <p class="eyebrow" id="detailMeta">UmbrelOS</p>
+              <h2 id="appTitle">Selecciona una app</h2>
+            </div>
           </div>
           <div class="actions">
-            <button id="startBtn" type="button" disabled>Arrancar</button>
-            <button id="stopBtn" type="button" disabled>Parar</button>
-            <button id="restartBtn" type="button" disabled>Reiniciar</button>
+            <button id="restartBtn" type="button" disabled>Reiniciar app</button>
           </div>
         </nav>
 
-        <section id="emptyState" class="empty">
-          <div>
-            <h3>Gestiona tus contenedores sin abrir SSH</h3>
-            <p>Este primer prototipo lista Docker, enseña configuración y permite acciones básicas de control.</p>
-          </div>
-        </section>
+        <div class="tabs">
+          <button class="tab active" data-tab="env">Variables</button>
+          <button class="tab" data-tab="overview">Resumen</button>
+          <button class="tab" data-tab="ports">Puertos y red</button>
+          <button class="tab" data-tab="files">Compose</button>
+          <button class="tab" data-tab="logs">Logs</button>
+        </div>
 
-        <section id="detail" class="detail hidden">
-          <div class="tabs">
-            <button class="tab active" data-tab="overview">Configuración</button>
-            <button class="tab" data-tab="ports">Puertos y red</button>
-            <button class="tab" data-tab="env">Variables</button>
-            <button class="tab" data-tab="files">Compose</button>
-            <button class="tab" data-tab="logs">Logs</button>
-          </div>
-
-          <div class="panel active" id="overview"></div>
-          <div class="panel" id="ports"></div>
-          <div class="panel" id="env"></div>
-          <div class="panel" id="files"></div>
-          <div class="panel" id="logs"></div>
-        </section>
+        <div class="panel active" id="env"></div>
+        <div class="panel" id="overview"></div>
+        <div class="panel" id="ports"></div>
+        <div class="panel" id="files"></div>
+        <div class="panel" id="logs"></div>
       </section>
     </main>
 

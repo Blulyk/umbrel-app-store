@@ -14,7 +14,8 @@ services:
       PORT: "3018"
       DOCKER_SOCKET: "/var/run/docker.sock"
       UMBREL_APP_DATA_ROOT: "/umbrel/app-data"
+      HOST_UMBREL_APP_DATA_ROOT: "/home/umbrel/umbrel/app-data"
       TZ: "Europe/Madrid"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
-      - "/home/umbrel/umbrel/app-data:/umbrel/app-data:ro"
+      - "/home/umbrel/umbrel/app-data:/umbrel/app-data"
