@@ -7,6 +7,8 @@ ENV_FILE="${SOURCE_DIR}/.env"
 
 mkdir -p \
   "${SOURCE_DIR}" \
+  "${DATA_DIR}/ssh/keys" \
+  "${DATA_DIR}/ssh/mux" \
   "${DATA_DIR}/ssh" \
   "${DATA_DIR}/applications" \
   "${DATA_DIR}/databases" \
@@ -14,6 +16,28 @@ mkdir -p \
   "${DATA_DIR}/backups" \
   "${DATA_DIR}/postgres" \
   "${DATA_DIR}/redis"
+
+HOST_PRIVATE_KEY="${DATA_DIR}/ssh/keys/id.root@host.docker.internal"
+HOST_PUBLIC_KEY="${HOST_PRIVATE_KEY}.pub"
+
+if [[ ! -f "${HOST_PRIVATE_KEY}" ]]; then
+  ssh-keygen -t ed25519 -N "" -C "coolify-generated-ssh-key" -f "${HOST_PRIVATE_KEY}"
+fi
+
+chmod 700 "${DATA_DIR}/ssh" "${DATA_DIR}/ssh/keys" "${DATA_DIR}/ssh/mux"
+chmod 600 "${HOST_PRIVATE_KEY}"
+chmod 644 "${HOST_PUBLIC_KEY}"
+
+if [[ -f "${HOST_PUBLIC_KEY}" && -d /root ]]; then
+  mkdir -p /root/.ssh
+  chmod 700 /root/.ssh
+  touch /root/.ssh/authorized_keys
+  if ! grep -qxF "$(cat "${HOST_PUBLIC_KEY}")" /root/.ssh/authorized_keys; then
+    cat "${HOST_PUBLIC_KEY}" >> /root/.ssh/authorized_keys
+    printf "\n" >> /root/.ssh/authorized_keys
+  fi
+  chmod 600 /root/.ssh/authorized_keys
+fi
 
 chown -R 9999:9999 \
   "${SOURCE_DIR}" \
