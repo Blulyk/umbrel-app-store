@@ -15,6 +15,14 @@ mkdir -p \
   "${DATA_DIR}/postgres" \
   "${DATA_DIR}/redis"
 
+chown -R 9999:9999 \
+  "${SOURCE_DIR}" \
+  "${DATA_DIR}/ssh" \
+  "${DATA_DIR}/applications" \
+  "${DATA_DIR}/databases" \
+  "${DATA_DIR}/services" \
+  "${DATA_DIR}/backups"
+
 random_hex() {
   openssl rand -hex 32
 }
