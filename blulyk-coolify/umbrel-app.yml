@@ -1,0 +1,41 @@
+manifestVersion: 1
+id: blulyk-coolify
+name: Coolify
+tagline: Self-hosted PaaS for apps, databases, and services
+icon: https://raw.githubusercontent.com/Blulyk/umbrel-app-store/main/blulyk-coolify/icon.svg
+category: developer
+version: "4.1.2"
+port: 8000
+description: >-
+  Coolify is an open-source, self-hostable alternative to Vercel, Heroku,
+  Netlify and Railway. It lets you deploy applications, databases and services
+  to your own infrastructure with Git integrations, Docker Compose support,
+  automatic SSL and one-click service templates.
+
+
+  This Umbrel package runs the official Coolify container image together with
+  the Postgres, Redis and Coolify Realtime services used by the official
+  self-hosted Docker Compose setup. App data, SSH keys, deployments, database
+  files, service files and generated secrets are persisted in this app's Umbrel
+  data directory.
+
+
+  Coolify manages deployment targets over SSH. You can add external servers
+  from the Coolify UI, or configure access to the Umbrel host if you want
+  Coolify to deploy resources on the same machine.
+developer: CoolLabs
+website: https://coolify.io/self-hosted
+dependencies: []
+repo: https://github.com/coollabsio/coolify
+support: https://github.com/coollabsio/coolify/issues
+gallery:
+  - https://coolify.io/images/og-image.png
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+submitter: Blulyk
+submission: https://github.com/Blulyk/umbrel-app-store
+releaseNotes: >-
+  Initial Umbrel package for Coolify v4.1.2 using the official Coolify,
+  Postgres, Redis and Coolify Realtime service layout with persistent
+  Umbrel-managed configuration and data directories.

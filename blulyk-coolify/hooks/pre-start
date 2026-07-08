@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DATA_DIR="${APP_DATA_DIR}/data"
+SOURCE_DIR="${DATA_DIR}/source"
+ENV_FILE="${SOURCE_DIR}/.env"
+
+mkdir -p \
+  "${SOURCE_DIR}" \
+  "${DATA_DIR}/ssh" \
+  "${DATA_DIR}/applications" \
+  "${DATA_DIR}/databases" \
+  "${DATA_DIR}/services" \
+  "${DATA_DIR}/backups" \
+  "${DATA_DIR}/postgres" \
+  "${DATA_DIR}/redis"
+
+random_hex() {
+  openssl rand -hex 32
+}
+
+random_base64() {
+  openssl rand -base64 32
+}
+
+if [[ ! -f "${ENV_FILE}" ]]; then
+  db_password="$(random_hex)"
+  redis_password="$(random_hex)"
+  pusher_app_id="$(random_hex)"
+  pusher_app_key="$(random_hex)"
+  pusher_app_secret="$(random_hex)"
+
+  cat > "${ENV_FILE}" << EOF
+APP_ID=$(random_hex)
+APP_NAME=Coolify
+APP_KEY=base64:$(random_base64)
+APP_ENV=production
+APP_URL=http://localhost:8000
+
+DB_CONNECTION=pgsql
+DB_HOST=postgres
+DB_PORT=5432
+DB_DATABASE=coolify
+DB_USERNAME=coolify
+DB_PASSWORD=${db_password}
+POSTGRES_PASSWORD=${db_password}
+
+REDIS_HOST=redis
+REDIS_PASSWORD=${redis_password}
+REDIS_PORT=6379
+
+PUSHER_APP_ID=${pusher_app_id}
+PUSHER_APP_KEY=${pusher_app_key}
+PUSHER_APP_SECRET=${pusher_app_secret}
+PUSHER_HOST=soketi
+PUSHER_PORT=6001
+PUSHER_SCHEME=http
+SOKETI_DEFAULT_APP_ID=${pusher_app_id}
+SOKETI_DEFAULT_APP_KEY=${pusher_app_key}
+SOKETI_DEFAULT_APP_SECRET=${pusher_app_secret}
+
+REGISTRY_URL=ghcr.io
+EOF
+  chmod 600 "${ENV_FILE}"
+  echo "Coolify: generated persistent environment file."
+else
+  echo "Coolify: existing environment file found."
+fi
