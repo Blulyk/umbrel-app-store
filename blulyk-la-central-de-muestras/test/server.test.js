@@ -105,6 +105,42 @@ test("GET /_active serves the active project at the root", async () => {
   }
 });
 
+test("GET /_active falls back to index.html for SPA routes without file extensions", async () => {
+  const ctx = await withServer();
+  try {
+    await fs.mkdir(path.join(ctx.projectsDir, "react_demo", "assets"), { recursive: true });
+    await fs.writeFile(path.join(ctx.projectsDir, "react_demo", "index.html"), "<h1>SPA Shell</h1>");
+    await fs.writeFile(path.join(ctx.projectsDir, "react_demo", "assets", "app.js"), "console.log('asset');");
+
+    await requestJson(ctx.baseUrl, "/api/projects/react_demo/enable", { method: "POST" });
+    const response = await fetch(`${ctx.baseUrl}/_active/clientes/raquel`);
+
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /SPA Shell/);
+  } finally {
+    await ctx.close();
+  }
+});
+
+test("GET /_active serves real assets and keeps missing asset paths as 404", async () => {
+  const ctx = await withServer();
+  try {
+    await fs.mkdir(path.join(ctx.projectsDir, "react_demo", "assets"), { recursive: true });
+    await fs.writeFile(path.join(ctx.projectsDir, "react_demo", "index.html"), "<h1>SPA Shell</h1>");
+    await fs.writeFile(path.join(ctx.projectsDir, "react_demo", "assets", "app.js"), "console.log('asset');");
+
+    await requestJson(ctx.baseUrl, "/api/projects/react_demo/enable", { method: "POST" });
+    let response = await fetch(`${ctx.baseUrl}/_active/assets/app.js`);
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /asset/);
+
+    response = await fetch(`${ctx.baseUrl}/_active/assets/missing.js`);
+    assert.equal(response.status, 404);
+  } finally {
+    await ctx.close();
+  }
+});
+
 test("POST /api/projects/:name/disable removes public access", async () => {
   const ctx = await withServer();
   try {

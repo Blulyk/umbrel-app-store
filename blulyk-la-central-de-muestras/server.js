@@ -11,8 +11,24 @@ function wantsIndex(requestPath) {
   return !requestPath || requestPath === "/" || requestPath.endsWith("/");
 }
 
+function hasFileExtension(requestPath) {
+  return Boolean(path.extname(String(requestPath || "").split("?")[0]));
+}
+
 function asyncRoute(handler) {
   return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
+}
+
+async function resolveProjectFile(projectsDir, projectName, suffix) {
+  const staticPath = wantsIndex(suffix) ? `${suffix.replace(/\/+$/, "")}/index.html` : suffix;
+  const filePath = publicProjectPath(projectsDir, projectName, staticPath);
+  const stat = await fs.stat(filePath).catch(() => null);
+  if (stat?.isFile()) return filePath;
+  if (hasFileExtension(suffix)) return "";
+
+  const indexPath = publicProjectPath(projectsDir, projectName, "index.html");
+  const indexStat = await fs.stat(indexPath).catch(() => null);
+  return indexStat?.isFile() ? indexPath : "";
 }
 
 export function createApp({
@@ -73,10 +89,8 @@ export function createApp({
     if (!project?.enabled) return res.status(404).type("text/plain").send("No hay ninguna muestra publicada");
 
     const suffix = req.params[0] || "/";
-    const staticPath = wantsIndex(suffix) ? `${suffix.replace(/\/+$/, "")}/index.html` : suffix;
-    const filePath = publicProjectPath(projectsDir, project.name, staticPath);
-    const stat = await fs.stat(filePath).catch(() => null);
-    if (!stat?.isFile()) return res.status(404).type("text/plain").send("Archivo no encontrado");
+    const filePath = await resolveProjectFile(projectsDir, project.name, suffix);
+    if (!filePath) return res.status(404).type("text/plain").send("Archivo no encontrado");
     return res.sendFile(filePath);
   }));
 
@@ -88,10 +102,8 @@ export function createApp({
     }
 
     const suffix = req.params[0] || "/";
-    const staticPath = wantsIndex(suffix) ? `${suffix.replace(/\/+$/, "")}/index.html` : suffix;
-    const filePath = publicProjectPath(projectsDir, name, staticPath);
-    const stat = await fs.stat(filePath).catch(() => null);
-    if (!stat?.isFile()) return res.status(404).type("text/plain").send("Archivo no encontrado");
+    const filePath = await resolveProjectFile(projectsDir, name, suffix);
+    if (!filePath) return res.status(404).type("text/plain").send("Archivo no encontrado");
     return res.sendFile(filePath);
   }));
 
