@@ -59,7 +59,7 @@ SOKETI_DEFAULT_APP_ID=${pusher_app_id}
 SOKETI_DEFAULT_APP_KEY=${pusher_app_key}
 SOKETI_DEFAULT_APP_SECRET=${pusher_app_secret}
 
-REGISTRY_URL=ghcr.io
+REGISTRY_URL=docker.io
 EOF
   chmod 600 "${ENV_FILE}"
   echo "Coolify: generated persistent environment file."

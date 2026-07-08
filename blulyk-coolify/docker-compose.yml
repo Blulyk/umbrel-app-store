@@ -7,7 +7,7 @@ services:
       APP_PORT: 8080
 
   coolify:
-    image: ghcr.io/coollabsio/coolify:4.1.2
+    image: docker.io/coollabsio/coolify:4.1.2
     container_name: blulyk-coolify_coolify_1
     restart: unless-stopped
     working_dir: /var/www/html
@@ -82,7 +82,7 @@ services:
       - coolify
 
   soketi:
-    image: ghcr.io/coollabsio/coolify-realtime:1.0.16
+    image: docker.io/coollabsio/coolify-realtime:1.0.16
     container_name: blulyk-coolify_soketi_1
     restart: unless-stopped
     env_file:
