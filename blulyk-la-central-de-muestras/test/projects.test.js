@@ -31,17 +31,26 @@ test("assertSafeProjectName rejects traversal and nested paths", () => {
   assert.throws(() => assertSafeProjectName(".hidden"), /Nombre de proyecto no valido/);
 });
 
-test("listProjects returns immediate folders and marks websites with index.html", async () => {
+test("listProjects returns immediate folders and marks static and dev-ready websites", async () => {
   const { root, registry } = await makeRegistry();
   await fs.mkdir(path.join(root, "web_fontanero"), { recursive: true });
   await fs.writeFile(path.join(root, "web_fontanero", "index.html"), "<h1>Fontanero</h1>");
+  await fs.mkdir(path.join(root, "react_cliente"), { recursive: true });
+  await fs.writeFile(path.join(root, "react_cliente", "package.json"), JSON.stringify({
+    scripts: { dev: "vite --host 0.0.0.0" },
+    dependencies: { "@vitejs/plugin-react": "latest", vite: "latest" }
+  }));
   await fs.mkdir(path.join(root, "notas"), { recursive: true });
   await fs.writeFile(path.join(root, "archivo.txt"), "ignored");
 
   const projects = await registry.listProjects();
 
-  assert.deepEqual(projects.map((project) => project.name), ["notas", "web_fontanero"]);
+  assert.deepEqual(projects.map((project) => project.name), ["notas", "react_cliente", "web_fontanero"]);
   assert.equal(projects.find((project) => project.name === "web_fontanero").hasIndex, true);
+  assert.equal(projects.find((project) => project.name === "web_fontanero").mode, "static");
+  assert.equal(projects.find((project) => project.name === "react_cliente").hasDevScript, true);
+  assert.equal(projects.find((project) => project.name === "react_cliente").runtime, "vite");
+  assert.equal(projects.find((project) => project.name === "react_cliente").mode, "dev");
   assert.equal(projects.find((project) => project.name === "notas").hasIndex, false);
 });
 
@@ -71,11 +80,25 @@ test("setEnabled persists a single active project and public URL", async () => {
   assert.equal(projects.find((project) => project.name === "web_pintor").enabled, true);
 });
 
-test("setEnabled refuses folders without index.html", async () => {
+test("setEnabled accepts dev projects without index.html", async () => {
+  const { root, registry } = await makeRegistry();
+  await fs.mkdir(path.join(root, "react_cliente"), { recursive: true });
+  await fs.writeFile(path.join(root, "react_cliente", "package.json"), JSON.stringify({
+    scripts: { dev: "vite --host 0.0.0.0" }
+  }));
+
+  const project = await registry.setEnabled("react_cliente", true);
+
+  assert.equal(project.enabled, true);
+  assert.equal(project.hasIndex, false);
+  assert.equal(project.hasDevScript, true);
+});
+
+test("setEnabled refuses folders without index.html or a dev script", async () => {
   const { root, registry } = await makeRegistry();
   await fs.mkdir(path.join(root, "boceto"), { recursive: true });
 
-  await assert.rejects(() => registry.setEnabled("boceto", true), /index.html/);
+  await assert.rejects(() => registry.setEnabled("boceto", true), /index.html o un script dev/);
 });
 
 test("publicProjectPath returns a normalized file path inside the project", async () => {

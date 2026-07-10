@@ -19,7 +19,13 @@ async function api(route, options = {}) {
 }
 
 function projectMeta(project) {
-  if (!project.hasIndex) return "Falta index.html";
+  if (project.mode === "dev") {
+    const runtime = project.runtime ? ` (${project.runtime})` : "";
+    return project.enabled ? `Proyecto dev publicado${runtime}` : `Proyecto dev listo${runtime}`;
+  }
+  if (project.hasIndex) return project.enabled ? "Publicado para cliente" : "Web estatica lista";
+  if (project.hasPackageJson) return "Falta script dev en package.json";
+  if (!project.hasIndex) return "Falta index.html o package.json con script dev";
   if (project.enabled) return "Publicado para cliente";
   return "Listo para publicar";
 }
@@ -63,7 +69,7 @@ function render() {
       setStatus(`Enlace copiado: ${project.publicUrl}`);
     });
 
-    publish.disabled = !project.hasIndex || project.enabled;
+    publish.disabled = !project.canPublish || project.enabled;
     publish.textContent = state.projects.some((item) => item.enabled) ? "Cambiar a esta web" : "Publicar esta web";
     publish.addEventListener("click", async () => {
       const result = await api(`/api/projects/${encodeURIComponent(project.name)}/enable`, { method: "POST" });

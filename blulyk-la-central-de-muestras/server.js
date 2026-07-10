@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { DevServerManager } from "./lib/dev-server.js";
 import { ProjectRegistry, assertSafeProjectName, publicProjectPath } from "./lib/projects.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -31,10 +32,38 @@ async function resolveProjectFile(projectsDir, projectName, suffix) {
   return indexStat?.isFile() ? indexPath : "";
 }
 
+async function proxyToDevServer(req, res, target, forwardedPath) {
+  const url = new URL(forwardedPath || "/", target);
+  if (req.url.includes("?")) {
+    url.search = req.url.slice(req.url.indexOf("?"));
+  }
+
+  const response = await fetch(url, {
+    method: req.method,
+    headers: {
+      accept: req.headers.accept || "*/*",
+      "user-agent": req.headers["user-agent"] || "la-central-de-muestras",
+      "x-forwarded-host": req.headers.host || "",
+      "x-forwarded-proto": "https"
+    },
+    redirect: "manual"
+  });
+
+  res.status(response.status);
+  response.headers.forEach((value, key) => {
+    if (!["content-encoding", "content-length", "transfer-encoding"].includes(key.toLowerCase())) {
+      res.setHeader(key, value);
+    }
+  });
+  const body = Buffer.from(await response.arrayBuffer());
+  res.send(body);
+}
+
 export function createApp({
   projectsDir = process.env.PROJECTS_DIR || "/projects",
   dataDir = process.env.DATA_DIR || "/data",
-  publicBaseUrl = process.env.PUBLIC_BASE_URL || "https://umbrel.tailcbdb4e.ts.net:10000"
+  publicBaseUrl = process.env.PUBLIC_BASE_URL || "https://umbrel.tailcbdb4e.ts.net:10000",
+  devServerManager = new DevServerManager({ projectsDir })
 } = {}) {
   const app = express();
   const makeRegistry = () => new ProjectRegistry({ projectsDir, dataDir, publicBaseUrl });
@@ -73,13 +102,14 @@ export function createApp({
     const registry = makeRegistry();
     const project = await registry.getProject(req.params.name);
     if (!project) return res.status(404).json({ error: "Proyecto no encontrado" });
-    if (!project.hasIndex) return res.status(400).json({ error: "El proyecto necesita un index.html" });
+    if (!project.canPublish) return res.status(400).json({ error: "El proyecto necesita un index.html o un script dev" });
     res.json({ project: await registry.setEnabled(req.params.name, true) });
   }));
 
   app.post("/api/projects/:name/disable", asyncRoute(async (req, res) => {
     const registry = makeRegistry();
     const project = await registry.setEnabled(req.params.name, false);
+    await devServerManager.stop(req.params.name);
     res.json({ project });
   }));
 
@@ -89,6 +119,11 @@ export function createApp({
     if (!project?.enabled) return res.status(404).type("text/plain").send("No hay ninguna muestra publicada");
 
     const suffix = req.params[0] || "/";
+    if (project.mode === "dev") {
+      const devServer = await devServerManager.ensureRunning(project);
+      return proxyToDevServer(req, res, devServer.target, `/${suffix.replace(/^\/+/, "")}`);
+    }
+
     const filePath = await resolveProjectFile(projectsDir, project.name, suffix);
     if (!filePath) return res.status(404).type("text/plain").send("Archivo no encontrado");
     return res.sendFile(filePath);
@@ -101,7 +136,13 @@ export function createApp({
       return res.status(404).type("text/plain").send("Muestra no publicada");
     }
 
+    const project = await registry.getProject(name);
     const suffix = req.params[0] || "/";
+    if (project.mode === "dev") {
+      const devServer = await devServerManager.ensureRunning(project);
+      return proxyToDevServer(req, res, devServer.target, `/${suffix.replace(/^\/+/, "")}`);
+    }
+
     const filePath = await resolveProjectFile(projectsDir, name, suffix);
     if (!filePath) return res.status(404).type("text/plain").send("Archivo no encontrado");
     return res.sendFile(filePath);

@@ -7,13 +7,14 @@ import test from "node:test";
 
 import { createApp } from "../server.js";
 
-async function withServer() {
+async function withServer(options = {}) {
   const projectsDir = await fs.mkdtemp(path.join(os.tmpdir(), "muestras-http-projects-"));
   const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "muestras-http-data-"));
   const app = createApp({
     projectsDir,
     dataDir,
-    publicBaseUrl: "https://umbrel.tailcbdb4e.ts.net:10000"
+    publicBaseUrl: "https://umbrel.tailcbdb4e.ts.net:10000",
+    ...options
   });
   const server = http.createServer(app);
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -156,5 +157,75 @@ test("POST /api/projects/:name/disable removes public access", async () => {
     assert.equal(publicResponse.status, 404);
   } finally {
     await ctx.close();
+  }
+});
+
+test("GET /_active proxies dev projects without index.html", async () => {
+  const target = http.createServer((req, res) => {
+    res.writeHead(200, { "content-type": "text/html" });
+    res.end(`<h1>Dev server ${req.url}</h1>`);
+  });
+  await new Promise((resolve) => target.listen(0, "127.0.0.1", resolve));
+  const { port } = target.address();
+  const devServerManager = {
+    ensureRunning: async (project) => ({
+      target: `http://127.0.0.1:${port}`,
+      port,
+      status: "running",
+      project: project.name
+    }),
+    stop: async () => {}
+  };
+  const ctx = await withServer({ devServerManager });
+  try {
+    await fs.mkdir(path.join(ctx.projectsDir, "react_cliente"));
+    await fs.writeFile(path.join(ctx.projectsDir, "react_cliente", "package.json"), JSON.stringify({
+      scripts: { dev: "vite --host 0.0.0.0" }
+    }));
+
+    await requestJson(ctx.baseUrl, "/api/projects/react_cliente/enable", { method: "POST" });
+    const response = await fetch(`${ctx.baseUrl}/_active/clientes/raquel`);
+
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /Dev server \/clientes\/raquel/);
+  } finally {
+    await ctx.close();
+    await new Promise((resolve) => target.close(resolve));
+  }
+});
+
+test("GET /_active prefers dev server for Vite projects that also have index.html", async () => {
+  const target = http.createServer((req, res) => {
+    res.writeHead(200, { "content-type": "application/javascript" });
+    res.end(`console.log("dev ${req.url}")`);
+  });
+  await new Promise((resolve) => target.listen(0, "127.0.0.1", resolve));
+  const { port } = target.address();
+  const devServerManager = {
+    ensureRunning: async (project) => ({
+      target: `http://127.0.0.1:${port}`,
+      port,
+      status: "running",
+      project: project.name
+    }),
+    stop: async () => {}
+  };
+  const ctx = await withServer({ devServerManager });
+  try {
+    await fs.mkdir(path.join(ctx.projectsDir, "vite_cliente", "src"), { recursive: true });
+    await fs.writeFile(path.join(ctx.projectsDir, "vite_cliente", "index.html"), "<h1>Static fallback would be wrong</h1>");
+    await fs.writeFile(path.join(ctx.projectsDir, "vite_cliente", "package.json"), JSON.stringify({
+      scripts: { dev: "vite" },
+      dependencies: { vite: "latest" }
+    }));
+
+    await requestJson(ctx.baseUrl, "/api/projects/vite_cliente/enable", { method: "POST" });
+    const response = await fetch(`${ctx.baseUrl}/_active/src/main.jsx`);
+
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /dev \/src\/main.jsx/);
+  } finally {
+    await ctx.close();
+    await new Promise((resolve) => target.close(resolve));
   }
 });

@@ -20,4 +20,4 @@ services:
       TZ: "Europe/Madrid"
     volumes:
       - "${APP_DATA_DIR}/data:/data"
-      - "/home/umbrel/umbrel/home/proyectos:/projects:ro"
+      - "/home/umbrel/umbrel/home/proyectos:/projects"

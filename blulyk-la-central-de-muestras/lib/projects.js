@@ -41,6 +41,16 @@ async function writeJson(file, value) {
   await fs.writeFile(file, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+function detectRuntime(packageJson) {
+  const dependencies = {
+    ...packageJson.dependencies,
+    ...packageJson.devDependencies
+  };
+  if (dependencies.next) return "next";
+  if (dependencies.vite || /(^|\s)vite(\s|$)/.test(packageJson.scripts?.dev || "")) return "vite";
+  return packageJson.scripts?.dev ? "node" : "";
+}
+
 export class ProjectRegistry {
   constructor({ projectsDir, dataDir, publicBaseUrl = "" }) {
     this.projectsDir = projectsDir;
@@ -73,6 +83,21 @@ export class ProjectRegistry {
     }
   }
 
+  async projectPackageInfo(name) {
+    const packagePath = path.join(this.projectsDir, assertSafeProjectName(name), "package.json");
+    const packageJson = await readJson(packagePath, null);
+    if (!packageJson || typeof packageJson !== "object") {
+      return { hasPackageJson: false, hasDevScript: false, runtime: "" };
+    }
+
+    const hasDevScript = typeof packageJson.scripts?.dev === "string" && packageJson.scripts.dev.trim().length > 0;
+    return {
+      hasPackageJson: true,
+      hasDevScript,
+      runtime: hasDevScript ? detectRuntime(packageJson) : ""
+    };
+  }
+
   async listProjects() {
     await fs.mkdir(this.projectsDir, { recursive: true });
     await fs.mkdir(this.dataDir, { recursive: true });
@@ -93,10 +118,16 @@ export class ProjectRegistry {
 
     return Promise.all(folders.map(async (name) => {
       const hasIndex = await this.projectHasIndex(name);
-      const enabled = hasIndex && state.activeProject === name;
+      const packageInfo = await this.projectPackageInfo(name);
+      const canPublish = hasIndex || packageInfo.hasDevScript;
+      const mode = packageInfo.hasDevScript ? "dev" : hasIndex ? "static" : "";
+      const enabled = canPublish && state.activeProject === name;
       return {
         name,
         hasIndex,
+        ...packageInfo,
+        canPublish,
+        mode,
         enabled,
         publicUrl: enabled ? projectUrl(this.publicBaseUrl) : "",
         path: path.join(this.projectsDir, name)
@@ -114,7 +145,7 @@ export class ProjectRegistry {
     const safeName = assertSafeProjectName(name);
     const project = await this.getProject(safeName);
     if (!project) throw new Error("Proyecto no encontrado");
-    if (enabled && !project.hasIndex) throw new Error("El proyecto necesita un index.html");
+    if (enabled && !project.canPublish) throw new Error("El proyecto necesita un index.html o un script dev");
 
     const current = await this.readState();
     const activeProject = enabled ? safeName : current.activeProject === safeName ? "" : current.activeProject;
